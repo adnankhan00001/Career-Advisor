@@ -2,60 +2,68 @@
 
 import { useState } from "react";
 
-export default function Login() {
+export default function Signup() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
-  const handleLogin = async () => {
-    if (!email || !password) {
+  const handleSignup = async () => {
+    if (!name || !email || !password) {
       setMessage("Please fill all fields");
       return;
     }
 
     try {
-      const res = await fetch("http://localhost:8080/auth/login", {
+      const res = await fetch("http://localhost:8080/auth/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
-      const data = await res.text();
-      setMessage(data);
-    } catch (error) {
+      const data = await res.json();
+      setMessage("Signup Successful!");
+    } catch (err) {
       setMessage("Server error");
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[url('/bg.webp')] bg-cover bg-center">
-      <div className="bg-white/90 backdrop-blur-md shadow-xl rounded-2xl p-8 w-96">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100">
+      <div className="bg-white shadow-xl rounded-2xl p-8 w-96">
 
         <h1 className="text-2xl font-bold text-center mb-6">
-          Login
+          Signup
         </h1>
+
+        <input
+          type="text"
+          placeholder="Name"
+          className="w-full p-3 mb-4 border rounded-lg"
+          onChange={(e) => setName(e.target.value)}
+        />
 
         <input
           type="email"
           placeholder="Email"
-          className="w-full p-3 mb-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full p-3 mb-4 border rounded-lg"
           onChange={(e) => setEmail(e.target.value)}
         />
 
         <input
           type="password"
           placeholder="Password"
-          className="w-full p-3 mb-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full p-3 mb-4 border rounded-lg"
           onChange={(e) => setPassword(e.target.value)}
         />
 
         <button
-          onClick={handleLogin}
-          className="w-full bg-black text-white p-3 rounded-lg hover:bg-gray-800 transition"
+          onClick={handleSignup}
+          className="w-full bg-black text-white p-3 rounded-lg hover:bg-gray-800"
         >
-          Login
+          Signup
         </button>
 
         {message && (
