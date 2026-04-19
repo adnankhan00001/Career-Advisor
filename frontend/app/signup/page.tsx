@@ -2,18 +2,13 @@
 
 import { useState } from "react";
 
-export default function Signup() {
+export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
   const handleSignup = async () => {
-    if (!name || !email || !password) {
-      setMessage("Please fill all fields");
-      return;
-    }
-
     try {
       const res = await fetch("http://localhost:8080/auth/signup", {
         method: "POST",
@@ -23,55 +18,45 @@ export default function Signup() {
         body: JSON.stringify({ name, email, password }),
       });
 
-      const data = await res.json();
-      setMessage("Signup Successful!");
-    } catch (err) {
+      const data = await res.text();
+      setMessage(data);
+    } catch {
       setMessage("Server error");
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="bg-white shadow-xl rounded-2xl p-8 w-96">
-
-        <h1 className="text-2xl font-bold text-center mb-6">
-          Signup
-        </h1>
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="bg-white p-8 shadow rounded w-96">
+        <h1 className="text-xl font-bold mb-4 text-center">Signup</h1>
 
         <input
-          type="text"
           placeholder="Name"
-          className="w-full p-3 mb-4 border rounded-lg"
           onChange={(e) => setName(e.target.value)}
+          className="border p-2 mb-2 w-full"
         />
 
         <input
-          type="email"
           placeholder="Email"
-          className="w-full p-3 mb-4 border rounded-lg"
           onChange={(e) => setEmail(e.target.value)}
+          className="border p-2 mb-2 w-full"
         />
 
         <input
           type="password"
           placeholder="Password"
-          className="w-full p-3 mb-4 border rounded-lg"
           onChange={(e) => setPassword(e.target.value)}
+          className="border p-2 mb-2 w-full"
         />
 
         <button
           onClick={handleSignup}
-          className="w-full bg-black text-white p-3 rounded-lg hover:bg-gray-800"
+          className="bg-black text-white px-4 py-2 w-full"
         >
           Signup
         </button>
 
-        {message && (
-          <p className="mt-4 text-center text-sm text-gray-600">
-            {message}
-          </p>
-        )}
-
+        <p className="mt-2 text-center">{message}</p>
       </div>
     </div>
   );
