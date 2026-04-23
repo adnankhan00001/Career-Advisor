@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-
+import {useRouter} from "next/navigation";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-
-  const handleLogin = async () => {
+const router = useRouter();
+  const handleLogin = async (e) => {
+      e.preventDefault();
     if (!email || !password) {
       setMessage("Please fill all fields");
       return;
@@ -23,7 +24,12 @@ export default function Login() {
       });
 
       const data = await res.text();
-      setMessage(data);
+      if(res.ok && data== "Login Successful"){
+          router.push("/dashboard");
+      }else{
+          setMessage(data || "Login failed");
+      }
+
     } catch (error) {
       setMessage("Server error");
     }
