@@ -24,4 +24,8 @@ public class AuthController {
     public String login(@RequestBody User user){
         return userService.loginUser(user.getEmail(), user.getPassword());
     }
+    @GetMapping("/health")
+    public String base() {
+        return "Quiz API root working";
+    }
 }

@@ -1,88 +1,125 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCareerSuggestions } from "@/lib/careerLogic";
+import { useRouter } from "next/navigation";
+const mockUser = {
+  name: "Adnan",
+};
 
 export default function Dashboard() {
-  const [level, setLevel] = useState<string | null>(null);
+    const router = useRouter();
+    useEffect(() => {
+        const user = localStorage.getItem("user");
+        if(!user){
+            router.replace("/login");
+            }
+        }, []);
+  const [skills, setSkills] = useState<string[]>([]);
 
+  // Load skills from localStorage
   useEffect(() => {
-    const storedLevel = localStorage.getItem("userLevel");
-    setLevel(storedLevel);
+    const savedSkills = JSON.parse(localStorage.getItem("skills") || "[]");
+    setSkills(savedSkills);
   }, []);
 
-    return (
-      <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+  // Generate suggestions dynamically
+  const suggestions = getCareerSuggestions(skills);
 
-        {/* HERO */}
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 rounded-2xl shadow">
-          <h1 className="text-2xl font-bold">Welcome back 👋</h1>
-          <p className="mt-2">
-            {level ? `You are ${level} – Beginner` : "Loading..."}
-          </p>
+  return (
+    <div className="space-y-6">
 
-          <button className="mt-4 bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100">
-            Start Today’s Task
-          </button>
+      {/* Welcome Card */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-xl shadow">
+        <h1 className="text-2xl font-bold">
+          Hello {mockUser.name} 👋
+        </h1>
+        <p className="mt-2">
+          Let’s plan your career path smartly.
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-lg shadow text-center">
+          <h2 className="text-xl font-bold">{skills.length}</h2>
+          <p className="text-gray-500">Skills</p>
         </div>
 
-        {/* PROGRESS */}
+        <div className="bg-white p-4 rounded-lg shadow text-center">
+          <h2 className="text-xl font-bold">{suggestions.length}</h2>
+          <p className="text-gray-500">Suggestions</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg shadow text-center">
+          <h2 className="text-xl font-bold">
+            {skills.length > 0 ? suggestions.length : 0}
+          </h2>
+          <p className="text-gray-500">Paths</p>
+        </div>
+      </div>
+
+      {/* Main Section */}
+      <div className="grid grid-cols-2 gap-6">
+
+        {/* Career Suggestions */}
         <div className="bg-white p-5 rounded-xl shadow">
-          <h2 className="font-semibold mb-3">📊 Your Progress</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            Career Suggestions
+          </h2>
 
-          <div className="w-full bg-gray-200 h-2 rounded">
-            <div className="bg-blue-500 h-2 rounded w-[20%]" />
-          </div>
-
-          <p className="text-sm mt-2 text-gray-600">
-            6 / 30 problems completed
-          </p>
+          {skills.length === 0 ? (
+            <p className="text-gray-500">
+              Add skills to get career suggestions
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {suggestions.map((item, index) => (
+                <div
+                  key={index}
+                  className="flex justify-between items-center p-3 border rounded-lg"
+                >
+                  <span>{item.title}</span>
+                  <span className="text-blue-600 font-semibold">
+                    {item.match}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* ROADMAP */}
+        {/* Skills Section */}
         <div className="bg-white p-5 rounded-xl shadow">
-          <h2 className="font-semibold mb-3">📍 Your Roadmap</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            Your Skills
+          </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 border rounded-lg hover:shadow">
-              <h3 className="font-medium">Arrays</h3>
-              <p className="text-sm text-gray-500">Start with basics</p>
+          {skills.length === 0 ? (
+            <p className="text-gray-500">No skills added yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {skills.map((skill, index) => (
+                <span
+                  key={index}
+                  className="bg-gray-200 px-3 py-1 rounded-full text-sm"
+                >
+                  {skill}
+                </span>
+              ))}
             </div>
+          )}
 
-            <div className="p-4 border rounded-lg hover:shadow">
-              <h3 className="font-medium">Strings</h3>
-              <p className="text-sm text-gray-500">Pattern practice</p>
-            </div>
-
-            <div className="p-4 border rounded-lg hover:shadow">
-              <h3 className="font-medium">Recursion</h3>
-              <p className="text-sm text-gray-500">Build logic</p>
-            </div>
-          </div>
-        </div>
-
-        {/* WEEKLY PLAN */}
-        <div className="bg-white p-5 rounded-xl shadow">
-          <h2 className="font-semibold mb-3">📅 Weekly Plan</h2>
-
-          <div className="space-y-2 text-gray-700">
-            <p>Week 1 → Arrays (10 questions)</p>
-            <p>Week 2 → Strings (10 questions)</p>
-            <p>Week 3 → Recursion basics</p>
-          </div>
-        </div>
-
-        {/* TODAY TASK */}
-        <div className="bg-white p-5 rounded-xl shadow flex justify-between items-center">
-          <div>
-            <h2 className="font-semibold">🎯 Today’s Goal</h2>
-            <p className="text-gray-600">Solve 2 problems</p>
-          </div>
-
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-            Start
+          <button
+            onClick={() => window.location.href = "/skills"}
+            className="mt-4 w-full bg-black text-white py-2 rounded-lg"
+          >
+            Add Skill
           </button>
         </div>
 
       </div>
-    );
+
+    </div>
+  );
 }

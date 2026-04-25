@@ -25,6 +25,9 @@ const router = useRouter();
 
       const data = await res.text();
       if(res.ok && data== "Login Successful"){
+          localStorage.setItem("user", JSON.stringify({
+              email: email
+              }));
           router.push("/dashboard");
       }else{
           setMessage(data || "Login failed");
