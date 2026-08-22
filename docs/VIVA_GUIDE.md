@@ -3,7 +3,7 @@
 > **Project Title**: Career-Advisor: Intelligent Tech Career Exploration, Coding Workspace & Mock Interview Preparation Platform  
 > **Author / Maintainer**: Adnan Khan  
 > **Architecture**: Distributed Client-Server REST Architecture (Next.js 16 + Spring Boot 3.3.4 + MySQL 8.0)  
-> **Documentation Version**: 5.0 (Phase 13 — Production Readiness, Hardening & Deployment Foundation)
+> **Documentation Version**: 6.0 (Phase 14A — AI Infrastructure & Personal AI Foundation)
 
 ---
 
@@ -817,11 +817,82 @@ By annotating multi-step service methods (e.g. `submitInterview`, `syncSkills`, 
 
 ---
 
+## 13. Phase 14A Viva Questions & Answers: AI Infrastructure, Provider Abstraction & Personal Context Engine (Q76–Q88)
+
+### Q76: What is the primary objective of Phase 14A AI Infrastructure?
+**Answer**:
+Phase 14A establishes a decoupled, enterprise-grade AI foundation for the Career Advisor platform. Rather than tightly coupling business logic to a specific vendor's SDK, Phase 14A implements:
+1. **Provider Abstraction** (`AiProvider` interface) to support multiple LLMs (Gemini, OpenAI, Anthropic, Mock).
+2. **Environment-Driven Configuration** with zero hardcoded API keys.
+3. **Personal User Context Engine** (`UserAiContextService` + `AiContextBuilder`) aggregating authenticated candidate state without sensitive data leakage.
+4. **Token Telemetry & Usage Monitoring** (`AiUsageLog`).
+5. **Zero-Trust Security & Graceful Degradation** if external AI services are offline or disabled.
+
+### Q77: Why did we use the Provider Pattern (`AiProvider`) instead of directly calling an AI client library?
+**Answer**:
+1. **Vendor Neutrality (Avoid Vendor Lock-in)**: The application can switch between OpenAI, Google Gemini, Anthropic, or local open-source models (via Ollama/vLLM) simply by changing `AI_PROVIDER` in environment variables.
+2. **Testability & Offline Resilience**: In local development, CI pipelines, and environments without active API keys, `AiProviderFactory` automatically routes requests to `MockAiProvider`, ensuring 100% of platform tests pass without external network dependencies or API billing costs.
+3. **Consistent Error Normalization**: All external provider exceptions, timeouts, and rate limits are caught and normalized into standardized platform responses (`SUCCESS`, `TIMEOUT`, `PROVIDER_UNAVAILABLE`, `RATE_LIMITED`).
+
+### Q78: How does the Personal AI Context Engine assemble candidate data across modules?
+**Answer**:
+`UserAiContextService.buildUserContext(User user)` queries 8 distinct subsystem services and repositories in a unified read operation:
+- `user.getName()`, `user.getEmail()`, `user.getCareerGoal()`, `user.getUserLevel()`
+- `UserSkillService`: Verified skills portfolio.
+- `ResumeRepository`: Latest parsed resume summary, extracted skills, and skill gaps.
+- `QuizService`: Diagnostic assessment score, tier, and recommended career track.
+- `UserProgressService`: Roadmap milestones completed, total steps, and next recommended topic.
+- `ProblemService`: Solved DSA challenge counts, difficulty breakdown, and next recommended challenge.
+- `MockInterviewRepository`: Total sessions, completion count, average score, strong areas, and weak areas.
+- `RecommendationService`: Overall readiness percentage, lifecycle state (`BEGINNER`, `INTERMEDIATE`, `JOB_READY`), and priority actions.
+
+### Q79: How does the system guarantee zero sensitive data is leaked to LLMs or context endpoints?
+**Answer**:
+1. **Dedicated DTO Projection**: Context is assembled into `PersonalAiContextDto` using sanitized sub-DTOs (`UserSummaryDto`, `ResumeAiSummaryDto`, etc.).
+2. **Strict Exclusion of Secrets**: Passwords, BCrypt hashes, salts, JWT tokens, database connection URLs, and admin credentials are NEVER mapped into context DTOs.
+3. **Principal Derivation**: `GET /api/ai/context` strictly derives the user identity from `@AuthenticationPrincipal CustomUserDetails` (extracted from the validated JWT), preventing unauthorized IDOR access.
+
+### Q80: What safety boundaries and persona rules are enforced by `AiContextBuilder`?
+**Answer**:
+1. **Explicit Identity**: Persona is defined as "OneStop Career Advisor AI" and is explicitly instructed never to claim human status.
+2. **Grounding in Authoritative Data**: The AI must ground recommendations strictly in the candidate's verified profile data.
+3. **No Hallucination of User State**: If a candidate has not yet taken a quiz, uploaded a resume, or solved DSA problems, the prompt explicitly states that the section is unattempted, instructing the model to encourage completion rather than inventing fake scores.
+4. **Platform Action Encouragement**: Prompt guides the AI to suggest concrete platform actions (e.g. taking a quiz, practicing DSA, completing roadmap steps).
+
+### Q81: How does the backend track AI usage and costs without compromising privacy?
+**Answer**:
+The `AiUsageLog` JPA entity records:
+- `user_id` (foreign key to `users`)
+- `provider` (e.g. `openai`, `gemini`, `mock`)
+- `model` (e.g. `gemini-1.5-flash`, `gpt-4o-mini`)
+- `request_type` (e.g. `CHAT_COMPLETION`, `CONTEXT_EVALUATION`)
+- `prompt_tokens`, `completion_tokens`, `total_tokens`
+- `status` (`SUCCESS`, `TIMEOUT`, `ERROR`)
+- `latency_ms` and `failure_category`
+**Zero raw user messages or private resume text** are stored in `ai_usage_logs`, maintaining GDPR/CCPA privacy compliance while enabling precise operational observability and token cost analytics.
+
+### Q82: How does the platform behave when `AI_ENABLED=false` or `AI_API_KEY` is not provided?
+**Answer**:
+The platform demonstrates **graceful degradation**:
+- The application starts up normally with zero initialization errors.
+- `GET /api/ai/health` reports `enabled: false` (or `available: false`).
+- `GET /api/ai/context` continues to function normally (since personal context aggregation is independent of external LLM availability).
+- Chat requests return structured responses with `status: "AI_DISABLED"` or fallback contextual guidance via `MockAiProvider`.
+- Non-AI modules (Auth, Roadmaps, DSA, Quiz, Mock Interview, Resume Analyzer, Admin) remain 100% operational.
+
+### Q83: What is the difference between Phase 14A and Phase 14B?
+**Answer**:
+- **Phase 14A (Foundation)**: Architecture, provider abstraction, environment configuration, personal context engine, API contracts, telemetry, and safety boundaries.
+- **Phase 14B (Interactive Interface)**: End-user interactive Chatbot UI, real-time message streaming, conversation history persistence, and chat drawer component integration in the Next.js frontend.
+
+---
+
 ## 14. Future Scope & Production Roadmap
 
-- **Phase 14**: AI-Powered Conversational Voice Interviewer (Gemini Multimodal Live API).
-- **Phase 15**: ATS Formatting Scorer & Resume Improvement Recommendations.
-- **Phase 16**: Cloud Native Deployment (Docker, Kubernetes, AWS RDS, Cloudflare CDN).
+- **Phase 14B**: Personal AI Chatbot UI & Real-Time Interaction.
+- **Phase 15**: ATS Formatting Scorer & Automated Resume Revision Assistant.
+- **Phase 16**: Conversational Voice Interviewer (Gemini Multimodal Live API).
+- **Phase 17**: Kubernetes Deployment & Cloud Native CI/CD Pipeline.
 
 
 

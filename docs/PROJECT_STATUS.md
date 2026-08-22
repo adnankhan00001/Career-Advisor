@@ -330,10 +330,67 @@ Phase 11 — Resume Analyzer & Intelligent Skill Extraction — COMPLETE
 
 ---
 
+### Phase 14A — AI Infrastructure & Personal AI Foundation
+
+**Status**: COMPLETE  
+**Commit Baseline**: `75bb539`  
+**Purpose**: Establish a robust, decoupled, and secure enterprise AI infrastructure foundation with provider abstraction, environment configuration hardening, zero-trust personal user context engine, telemetry and usage tracking, prompt safety boundaries, and full backward-compatible regression protection.
+
+#### What Was Accomplished:
+
+1. **AI Provider Abstraction Layer (`com.careeradvisor.backend.ai.provider`)**:
+   - `AiProvider` interface: Decouples higher-level AI features from concrete LLM providers (`getProviderName()`, `isAvailable()`, `generateCompletion()`).
+   - `MockAiProvider`: Always-available, deterministic, offline-friendly provider for development and testing environments.
+   - `OpenAiCompatibleProvider`: Production-grade HTTP client with configurable timeouts (`SimpleClientHttpRequestFactory`), bearer token auth, and structured JSON parsing.
+   - `AiProviderFactory`: Dynamically resolves the active provider with graceful, automatic fallback to `MockAiProvider` when API keys are absent or services are offline.
+
+2. **Environment-Driven Configuration (`AiConfigProperties`)**:
+   - Integrated properties: `app.ai.enabled`, `app.ai.provider`, `app.ai.api-key`, `app.ai.model`, `app.ai.base-url`, `app.ai.max-tokens`, `app.ai.temperature`, `app.ai.timeout-seconds`.
+   - Updated `application.properties`, `application-dev.properties`, and `application-prod.properties` with safe defaults and zero hardcoded secrets.
+
+3. **Personal User Context Engine (`com.careeradvisor.backend.ai.context`)**:
+   - `UserAiContextService`: Aggregates the authoritative snapshot of the authenticated candidate across 8 domain services:
+     - User profile summary (sanitized of passwords, hashes, and secrets)
+     - Verified skills portfolio (`userSkillService`)
+     - Latest resume analysis metadata, parsed skills, and skill gaps (`resumeRepository`)
+     - Skill diagnostic assessment results (`quizService`)
+     - Roadmap progress, milestone count, and next recommended step (`userProgressService`)
+     - DSA problem-solving telemetry and category progress (`problemService`)
+     - Mock interview metrics, average scores, strong areas, and weak areas (`mockInterviewRepository`)
+     - Recommendation engine readiness score and priority action items (`recommendationService`)
+   - `AiContextBuilder`: Transforms structured context into token-efficient system prompt blocks with strict safety boundaries ("OneStop Career Advisor AI" persona, zero hallucination of user state, explicit absence indicators).
+
+4. **AI REST API Endpoints & Security (`com.careeradvisor.backend.ai.controller`)**:
+   - `GET /api/ai/health`: Public/authenticated health probe returning provider availability and status.
+   - `GET /api/ai/context`: Protected (`authenticated()`) endpoint returning `PersonalAiContextDto` strictly bound to `@AuthenticationPrincipal CustomUserDetails`.
+   - `POST /api/ai/chat`: Protected endpoint executing contextual chat completions.
+   - Updated `SecurityConfig.java` to grant appropriate access rules while enforcing stateless JWT verification.
+
+5. **AI Usage Tracking & Observability (`com.careeradvisor.backend.ai.model`)**:
+   - `AiUsageLog` JPA entity with database indexes on `user_id`, `created_at`, and `status`.
+   - `AiUsageLogRepository` and `AiUsageLogService`: Logs prompt tokens, completion tokens, total tokens, latency in ms, provider, and error categories without storing user prompts or secrets.
+
+6. **Frontend AI Client Layer (`frontend/lib/aiService.ts` & `frontend/lib/config.ts`)**:
+   - Fully-typed TypeScript interfaces (`PersonalAiContext`, `AiHealth`, `AiChatRequest`, `AiChatResponse`).
+   - Typed methods `getAiHealth()`, `getPersonalAiContext()`, `sendAiChatMessage()`.
+
+7. **Verification & Regression Results**:
+   - Backend compile: `BUILD SUCCESS` (138 source files).
+   - Backend package: `BUILD SUCCESS` (`backend-0.0.1-SNAPSHOT.jar`).
+   - Frontend build: `18 routes` compiled with 0 errors (`npm run build`).
+   - `test_phase14a_ai_foundation.js`: **26/26 PASS (100%)**.
+   - `test_phase13_production.js`: **28/28 PASS (100%)**.
+   - `test_phase12_rbac.js`: **38/38 PASS (100%)**.
+   - `test_phase11_resume.js`: **19/19 PASS (100%)**.
+   - `test_master_regression.js`: **25/25 PASS (100%)**.
+   - **Total Passing Automated Tests**: **136+ API/backend tests (100% PASS)**.
+
+---
+
 ## 6. Immediate Next Step
 
 ### Task
-Phase 13 (Production Readiness, Hardening & Deployment Foundation) is 100% COMPLETE and fully verified. Awaiting user review and confirmation before committing changes or preparing Phase 14.
+Phase 14A (AI Infrastructure & Personal AI Foundation) is 100% COMPLETE and fully verified. Awaiting user review and confirmation before committing or advancing to Phase 14B (Personal AI Chatbot UI & Real-Time Interaction).
 
 
 

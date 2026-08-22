@@ -320,3 +320,112 @@
 - **Endpoint**: `GET /api/admin/users/{id}`
 - **Access**: `ROLE_ADMIN` strictly enforced
 - **Response** (`200 OK`): Detailed candidate portfolio, verified skills, resume status, and interview metrics.
+
+---
+
+## 12. AI Infrastructure & Personal AI Endpoints (`/api/ai`)
+
+### 12.1 AI Infrastructure Health Check
+- **Endpoint**: `GET /api/ai/health`
+- **Access**: Public / Authenticated
+- **Description**: Probes AI infrastructure availability, active provider mode (`mock`, `openai`, `gemini`), and configured model without exposing secrets.
+- **Response** (`200 OK`):
+  ```json
+  {
+    "enabled": true,
+    "provider": "mock",
+    "available": true,
+    "model": "gemini-1.5-flash",
+    "message": "AI service is active and available."
+  }
+  ```
+
+### 12.2 Personal AI Context
+- **Endpoint**: `GET /api/ai/context`
+- **Access**: Authenticated (`ROLE_USER` or `ROLE_ADMIN`)
+- **Description**: Aggregates the authoritative personal context for the authenticated user (profile, verified skills, resume summary, quiz scores, roadmap milestone progress, DSA problem metrics, mock interview history, and recommendation readiness score).
+- **Security**: Derives identity exclusively from `@AuthenticationPrincipal CustomUserDetails`. Strictly omits passwords, hashes, salts, and secrets.
+- **Response** (`200 OK`):
+  ```json
+  {
+    "userProfile": {
+      "id": 1,
+      "name": "Jane Doe",
+      "email": "jane.doe@example.com",
+      "careerGoal": "Java Backend Developer",
+      "userLevel": "Intermediate"
+    },
+    "targetCareerGoal": "Java Backend Developer",
+    "verifiedSkills": ["Java", "Spring Boot", "MySQL"],
+    "resumeSummary": {
+      "resumeId": 4,
+      "fileName": "Jane_Resume.pdf",
+      "uploadTimestamp": "2026-08-22T19:30:00",
+      "parsingStatus": "PARSED",
+      "extractedSkills": ["Java", "Spring Boot", "Docker"]
+    },
+    "quizAssessment": {
+      "score": 8,
+      "totalQuestions": 10,
+      "percentage": 80,
+      "evaluatedLevel": "Intermediate",
+      "recommendedCareer": "Java Backend Developer"
+    },
+    "roadmapProgress": {
+      "careerGoal": "Java Backend Developer",
+      "completedStepsCount": 3,
+      "totalStepsCount": 12,
+      "completionPercentage": 25,
+      "nextRecommendedStep": "Spring Data JPA & Hibernate"
+    },
+    "dsaProgress": {
+      "solvedCount": 5,
+      "totalCount": 22,
+      "completionPercentage": 22,
+      "categoryDistribution": {"ARRAYS": 2, "TREES": 1}
+    },
+    "mockInterviewPerformance": {
+      "totalSessions": 2,
+      "completedSessions": 2,
+      "averageScore": 75,
+      "bestScore": 85,
+      "strongAreas": ["Java Core", "OOP"],
+      "weakAreas": ["Concurrency"]
+    },
+    "recommendations": {
+      "overallReadinessScore": 68,
+      "userLifecycleState": "INTERMEDIATE",
+      "topCareerMatch": "Java Backend Developer",
+      "topCareerMatchPercentage": 85,
+      "missingSkills": ["Kubernetes", "AWS"]
+    },
+    "contextTimestamp": "2026-08-22T14:00:00Z"
+  }
+  ```
+- **Error Codes**: `401 Unauthorized` (Unauthenticated).
+
+### 12.3 Contextual AI Chat Completion
+- **Endpoint**: `POST /api/ai/chat`
+- **Access**: Authenticated
+- **Request Body**:
+  ```json
+  {
+    "message": "What should be my next focus to improve my backend interview readiness?",
+    "includePersonalContext": true,
+    "conversationId": "conv_123"
+  }
+  ```
+- **Response** (`200 OK`):
+  ```json
+  {
+    "response": "Based on your Career Advisor profile, focus on completing your next roadmap milestone...",
+    "status": "SUCCESS",
+    "provider": "mock",
+    "model": "gemini-1.5-flash",
+    "tokensUsed": 45,
+    "latencyMs": 12,
+    "conversationId": "conv_123",
+    "timestamp": "2026-08-22T19:30:00"
+  }
+  ```
+- **Error Codes**: `401 Unauthorized`, `400 Bad Request` (Empty message).

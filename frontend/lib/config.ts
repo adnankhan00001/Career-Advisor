@@ -70,4 +70,9 @@ export const API_ENDPOINTS = {
     USERS: `${API_BASE_URL}/api/admin/users`,
     USER_DETAIL: (id: number | string) => `${API_BASE_URL}/api/admin/users/${id}`,
   },
+  AI: {
+    HEALTH: `${API_BASE_URL}/api/ai/health`,
+    CONTEXT: `${API_BASE_URL}/api/ai/context`,
+    CHAT: `${API_BASE_URL}/api/ai/chat`,
+  },
 };
