@@ -2,104 +2,116 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 
 export default function Home() {
   return (
-    <div className="relative min-h-screen text-white">
-
-      {/* Background */}
-      <div className="absolute inset-0">
+    <div className="relative min-h-screen text-white bg-black overflow-hidden flex flex-col justify-between">
+      {/* Background Image & Overlay */}
+      <div className="absolute inset-0 z-0">
         <img
           src="/bg.webp"
-          alt="background"
-          className="w-full h-full object-cover scale-105"
+          alt="Career Advisor Background"
+          className="w-full h-full object-cover opacity-35 scale-105"
         />
-        <div className="absolute inset-0 bg-black/60"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black"></div>
       </div>
 
-      {/* Animated Wrapper */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-        className="relative z-10 flex flex-col min-h-screen"
-      >
-
-        {/* Navbar */}
-
+      {/* Main Content */}
+      <div className="relative z-10 flex flex-col min-h-screen justify-between">
+        {/* Top Navbar */}
+        <Navbar />
 
         {/* Hero Section */}
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="flex flex-1 items-center justify-center text-center px-6"
+          className="flex-1 flex items-center justify-center text-center px-6 py-12"
         >
-          <div>
-            <h2 className="text-5xl font-bold mb-6 leading-tight">
-              Design Your Career <br /> With Confidence 🚀
-            </h2>
+          <div className="max-w-3xl mx-auto">
+            <span className="inline-block text-xs uppercase tracking-widest text-blue-400 font-bold bg-blue-950/60 border border-blue-800/60 px-3.5 py-1.5 rounded-full mb-6">
+              AI-Powered Career & Interview Intelligence
+            </span>
 
-            <p className="text-gray-300 mb-8 max-w-xl mx-auto">
-              A smarter way to discover your future. Get guided paths, skill insights,
-              and real direction tailored just for you.
+            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
+              Design Your Tech Career <br />
+              <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+                With Total Clarity 🚀
+              </span>
+            </h1>
+
+            <p className="text-gray-300 text-base sm:text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
+              Discover industry-aligned career tracks, map your technical skills,
+              execute code in our interactive browser IDE, and pass technical interviews
+              with timed mock rounds and AI intelligence.
             </p>
 
-            <div className="space-x-4">
-              <Link href="/signup">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link href="/signup" className="w-full sm:w-auto">
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  className="bg-white text-black px-6 py-3 rounded-lg font-semibold shadow-lg hover:shadow-white/30 transition"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full sm:w-auto bg-white text-black px-8 py-3.5 rounded-xl font-bold text-sm sm:text-base shadow-xl hover:bg-gray-100 transition cursor-pointer"
                 >
-                  Get Started
+                  Start Assessment & Roadmap →
                 </motion.button>
               </Link>
 
-              <Link href="/login">
+              <Link href="/login" className="w-full sm:w-auto">
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  className="border border-white px-6 py-3 rounded-lg hover:bg-white hover:text-black transition"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full sm:w-auto border border-white/40 bg-white/5 backdrop-blur-md px-8 py-3.5 rounded-xl font-semibold text-sm sm:text-base hover:bg-white/10 transition cursor-pointer"
                 >
-                  Login
+                  Sign In
                 </motion.button>
               </Link>
             </div>
           </div>
         </motion.div>
 
-        {/* Features Section */}
-        <div className="grid md:grid-cols-3 gap-6 px-10 pb-12">
-
+        {/* Features Grid Section */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 px-6 sm:px-12 pb-12 max-w-7xl mx-auto w-full">
           {[
             {
-              title: "Smart Suggestions",
-              desc: "AI-driven recommendations based on your profile.",
+              icon: "🎯",
+              title: "Career Track Discovery",
+              desc: "Explore 7 in-demand career paths with skill breakdowns and compensation benchmarks.",
             },
             {
-              title: "Skill Mapping",
-              desc: "Know exactly what to learn next to grow faster.",
+              icon: "🗺️",
+              title: "Interactive Roadmaps",
+              desc: "Step-by-step milestone checklists for frontend, backend, cloud, data, and AI/ML.",
             },
             {
-              title: "Future Ready",
-              desc: "Stay aligned with industry trends and opportunities.",
+              icon: "💻",
+              title: "In-Browser Code IDE",
+              desc: "Practice 22 curated DSA problems with line numbering, sample runner, and test suites.",
+            },
+            {
+              icon: "⏱️",
+              title: "Timed Mock Interviews",
+              desc: "Simulate real tech interview rounds with backend-authoritative timers and explanations.",
             },
           ].map((item, index) => (
             <motion.div
               key={index}
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + index * 0.2 }}
-              whileHover={{ scale: 1.05 }}
-              className="bg-white/10 p-6 rounded-xl backdrop-blur-lg border border-white/20"
+              transition={{ delay: 0.2 + index * 0.1 }}
+              whileHover={{ scale: 1.02 }}
+              className="bg-white/5 p-5 rounded-2xl backdrop-blur-md border border-white/10 hover:border-white/20 transition flex flex-col justify-between"
             >
-              <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
-              <p className="text-gray-300">{item.desc}</p>
+              <div>
+                <div className="text-2xl mb-2">{item.icon}</div>
+                <h3 className="text-sm font-bold text-white mb-1">{item.title}</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">{item.desc}</p>
+              </div>
             </motion.div>
           ))}
-
         </div>
-
-      </motion.div>
+      </div>
     </div>
   );
 }

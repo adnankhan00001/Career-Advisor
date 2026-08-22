@@ -1,31 +1,63 @@
 package com.careeradvisor.backend.controller;
 
+import com.careeradvisor.backend.dto.AuthResponse;
+import com.careeradvisor.backend.dto.LoginRequest;
+import com.careeradvisor.backend.dto.SignupRequest;
 import com.careeradvisor.backend.model.User;
 import com.careeradvisor.backend.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-@Controller
+
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
-@RequestMapping("/auth")
-@CrossOrigin(origins = "http://localhost:3000")
+@RequestMapping({"/api/auth", "/auth"})
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 public class AuthController {
 
     @Autowired
     private UserService userService;
 
-    @PostMapping("/signup")
-    public String signup(@RequestBody User user) {
-        userService.registerUser(user);
-        return "User registered Successfully";
+    @PostMapping({"/register", "/signup"})
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody SignupRequest request) {
+        AuthResponse response = userService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/login")
-    public String login(@RequestBody User user){
-        return userService.loginUser(user.getEmail(), user.getPassword());
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        AuthResponse response = userService.login(request);
+        return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        User user = userService.getUserByEmail(userDetails.getUsername());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", user.getId());
+        response.put("name", user.getName());
+        response.put("email", user.getEmail());
+        response.put("role", user.getRole() != null ? user.getRole().name() : "USER");
+
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/health")
-    public String base() {
-        return "Quiz API root working";
+    public ResponseEntity<Map<String, String>> health() {
+        Map<String, String> status = new HashMap<>();
+        status.put("status", "UP");
+        status.put("message", "Authentication service is running");
+        return ResponseEntity.ok(status);
     }
 }

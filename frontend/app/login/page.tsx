@@ -1,79 +1,171 @@
 "use client";
 
-import { useState } from "react";
-import {useRouter} from "next/navigation";
-export default function Login() {
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { ApiError } from "@/lib/apiClient";
+
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-const router = useRouter();
-  const handleLogin = async (e) => {
-      e.preventDefault();
-    if (!email || !password) {
-      setMessage("Please fill all fields");
+  const [isError, setIsError] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("expired") === "true") {
+      setMessage("Your session has expired. Please sign in again.");
+      setIsError(true);
+    }
+  }, [searchParams]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+
+    if (!email.trim() || !password.trim()) {
+      setMessage("Please fill in all fields");
+      setIsError(true);
       return;
     }
 
+    setLoading(true);
+    setMessage("");
+
     try {
-      const res = await fetch("http://localhost:8080/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      await login({
+        email: email.trim(),
+        password,
       });
 
-      const data = await res.text();
-      if(res.ok && data== "Login Successful"){
-          localStorage.setItem("user", JSON.stringify({
-              email: email
-              }));
-          router.push("/dashboard");
-      }else{
-          setMessage(data || "Login failed");
-      }
+      router.push("/dashboard");
+    } catch (err: any) {
+      setIsError(true);
 
-    } catch (error) {
-      setMessage("Server error");
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setMessage("Invalid email or password.");
+        } else if (err.status === 400) {
+          if (err.details && err.details.length > 0) {
+            setMessage(err.details.join(", "));
+          } else {
+            setMessage(err.message || "Invalid login input.");
+          }
+        } else {
+          setMessage(err.message || "Login failed. Please try again.");
+        }
+      } else {
+        setMessage("Unable to log in. Please check your credentials or backend server.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[url('/bg.webp')] bg-cover bg-center">
-      <div className="bg-white/90 backdrop-blur-md shadow-xl rounded-2xl p-8 w-96">
-
-        <h1 className="text-2xl font-bold text-center mb-6">
-          Login
-        </h1>
-
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-3 mb-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full p-3 mb-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <button
-          onClick={handleLogin}
-          className="w-full bg-black text-white p-3 rounded-lg hover:bg-gray-800 transition"
-        >
-          Login
-        </button>
-
-        {message && (
-          <p className="mt-4 text-center text-sm text-gray-600">
-            {message}
+    <div className="min-h-screen flex items-center justify-center bg-[url('/bg.webp')] bg-cover bg-center p-4">
+      <div className="bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-8 w-full max-w-md border border-white/20">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+            Welcome Back
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Log in to continue your career journey
           </p>
-        )}
+        </div>
 
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+              Email Address
+            </label>
+            <input
+              type="email"
+              placeholder="alex@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black text-sm transition"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black text-sm transition"
+              required
+            />
+          </div>
+
+          {message && (
+            <div
+              className={`p-3 rounded-xl text-xs font-medium text-center ${
+                isError
+                  ? "bg-red-50 text-red-600 border border-red-200"
+                  : "bg-green-50 text-green-700 border border-green-200"
+              }`}
+            >
+              {message}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold text-sm transition shadow-md flex items-center justify-center gap-2 ${
+              loading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-black hover:bg-gray-800"
+            }`}
+          >
+            {loading ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <span>Signing in...</span>
+              </>
+            ) : (
+              "Sign In to Dashboard →"
+            )}
+          </button>
+        </form>
+
+        <div className="mt-6 pt-5 border-t border-gray-200 text-center">
+          <p className="text-sm text-gray-600">
+            Don't have an account?{" "}
+            <Link
+              href="/signup"
+              className="text-black font-bold hover:underline"
+            >
+              Create one
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-black text-white text-sm">
+          Loading sign in...
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
