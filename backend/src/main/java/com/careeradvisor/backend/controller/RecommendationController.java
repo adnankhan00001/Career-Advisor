@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/recommendations")
-@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 public class RecommendationController {
 
     private final RecommendationService recommendationService;

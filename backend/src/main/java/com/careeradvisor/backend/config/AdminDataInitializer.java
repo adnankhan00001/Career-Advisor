@@ -35,6 +35,11 @@ public class AdminDataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        if (!org.springframework.util.StringUtils.hasText(adminEmail) || !org.springframework.util.StringUtils.hasText(adminPassword)) {
+            logger.info("Administrator auto-bootstrap skipped (no configured admin credentials).");
+            return;
+        }
+
         String normalizedEmail = adminEmail.trim().toLowerCase();
         if (!userRepository.existsByEmail(normalizedEmail)) {
             User admin = User.builder()
@@ -47,7 +52,7 @@ public class AdminDataInitializer implements CommandLineRunner {
                     .build();
 
             userRepository.save(admin);
-            logger.info("Local/Development Administrator account initialized successfully for email: {}", normalizedEmail);
+            logger.info("Administrator account initialized successfully for email: {}", normalizedEmail);
         } else {
             // Ensure existing admin account retains ADMIN role
             userRepository.findByEmail(normalizedEmail).ifPresent(user -> {

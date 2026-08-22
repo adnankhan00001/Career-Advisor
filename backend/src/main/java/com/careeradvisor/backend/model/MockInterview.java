@@ -10,7 +10,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "mock_interviews")
+@Table(name = "mock_interviews", indexes = {
+    @Index(name = "idx_mock_interview_user_id", columnList = "user_id"),
+    @Index(name = "idx_mock_interview_started_at", columnList = "started_at")
+})
 @Data
 @Builder
 @NoArgsConstructor

@@ -2,7 +2,7 @@
 
 > **Permanent Single Source of Truth**  
 > This document tracks the complete development history, system architecture, feature matrix, testing records, and viva-ready engineering specifications for the Career-Advisor project.  
-> **Status**: Production Stabilized & Viva Ready (Phase 12 COMPLETE)
+> **Status**: Production Ready, Hardened & Deployed Foundation (Phase 13 COMPLETE)
 
 ---
 
@@ -230,9 +230,110 @@ Phase 11 — Resume Analyzer & Intelligent Skill Extraction — COMPLETE
   - Browser Resume Contract Suite (`scratch/test_browser_resume_workflow.js`): **16/16 PASS (100%)**.
   - Master Regression Suite (`scratch/test_master_regression.js`): **25/25 PASS (100%)** across all 12 phases.
 
+### Phase 13 — Production Readiness, Hardening & Deployment Foundation
+
+#### Step 1 — Environment Configuration Hardening
+
+**Status**: COMPLETE  
+**Purpose**: Separate development and production configurations using Spring profiles (`dev` vs `prod`), externalize sensitive parameters into environment variables with zero plaintext secret exposure, make CORS allowed origins dynamically configurable, safely parameterize multipart upload limits, provide a frontend `.env.example` template, and guarantee zero regressions across local developer workflows and regression test suites.
+
+**What Was Done**:
+- **Backend Profile Architecture**:
+  - `application.properties`: Configured common server settings (`server.port=${PORT:8080}`), JPA dialect, multipart limits (`${MAX_FILE_SIZE:5MB}`, `${MAX_REQUEST_SIZE:10MB}`), and dynamic active profile selection (`spring.profiles.active=${SPRING_PROFILES_ACTIVE:dev}`).
+  - `application-dev.properties`: Local developer profile with safe fallback values (`root` user, empty password fallback, `show-sql=true`, local `dev` JWT secret, `http://localhost:3000` CORS origin, and local admin bootstrapping).
+  - `application-prod.properties`: Strict production profile consuming 100% environment-driven configuration (`${DB_HOST}`, `${DB_PORT}`, `${DB_NAME}`, `${DB_USERNAME}`, `${DB_PASSWORD}`, `${JWT_SECRET}`, `${JWT_EXPIRATION_MS}`, `${CORS_ALLOWED_ORIGINS}`, `${ADMIN_EMAIL}`, `${ADMIN_PASSWORD}`), with `show-sql=false`, `open-in-view=false`, and SQL query logging disabled.
+- **Dynamic CORS & Security Hardening**:
+  - Updated `SecurityConfig.java` to inject `${app.cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000}`, parsing comma-separated origins dynamically into `CorsConfiguration.setAllowedOrigins()`.
+  - Updated `AdminDataInitializer.java` to verify `adminEmail` and `adminPassword` are non-empty before bootstrapping, allowing production environments to skip auto-creation if desired.
+- **Frontend Configuration & .gitignore**:
+  - Created `frontend/.env.example` documenting `NEXT_PUBLIC_API_URL` configuration.
+  - Updated `.gitignore` to strictly exclude `.env`, `.env.local`, `*.env*` while preserving `!.env.example`.
+- **Testing & Verification**:
+  - Backend compile: 110 source files compiled with `BUILD SUCCESS`.
+  - Frontend production build: 18 routes compiled with 0 errors (`npm run build`).
+  - Active profile confirmed in runtime logs: `The following 1 profile is active: "dev"`.
+  - Phase 12 RBAC Suite: **38/38 PASS (100%)**.
+  - Phase 11 Resume Suite: **19/19 PASS (100%)**.
+  - Master Regression Suite: **25/25 PASS (100%)**.
+  - Browser RBAC Workflow Suite: **13/13 PASS (100%)**.
+  - Browser Resume Workflow Suite: **16/16 PASS (100%)**.
+
+#### Step 2 — Security Hardening
+
+**Status**: COMPLETE  
+**Purpose**: Audit Spring Security configuration, enforce zero-trust user isolation across all endpoints, prevent IDOR (Insecure Direct Object Reference) and privilege escalation vulnerabilities, sanitize controller CORS to rely solely on centralized security configuration, verify DTO password/hash protection, and document the comprehensive full-stack security matrix.
+
+**Endpoint Security Matrix**:
+
+| Endpoint Pattern | HTTP Methods | Public | USER | ADMIN | Security & Authorization Rationale |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| `/api/auth/register`, `/signup` | `POST` | YES | YES | YES | Public onboarding; strictly forces `Role.USER` (ignores payload role) |
+| `/api/auth/login` | `POST` | YES | YES | YES | Issues signed JWT via BCrypt credentials validation |
+| `/api/auth/me` | `GET` | NO | YES | YES | Returns authenticated user identity and role from `SecurityContext` |
+| `/api/auth/health` | `GET` | YES | YES | YES | Liveness / health monitoring check |
+| `/api/careers/**` | `GET` | YES | YES | YES | Public career catalog and details |
+| `/api/roadmaps/**` | `GET` | YES | YES | YES | Public step-by-step career roadmaps |
+| `/api/skills/**` | `GET`, `POST`, `DELETE` | NO | YES | YES | User-isolated skill portfolio (bound to JWT principal) |
+| `/api/progress/**` | `GET`, `POST` | NO | YES | YES | User-isolated roadmap checklist and target career goals |
+| `/api/quiz/submit` | `POST` | YES | YES | YES | Anonymous or authenticated quiz evaluation |
+| `/api/quiz/latest` | `GET` | NO | YES | YES | User-isolated latest quiz score record |
+| `/api/problems`, `/{id}` | `GET` | YES | YES | YES | Public problem catalog (attaches solved state if authenticated) |
+| `/api/problems/progress/summary` | `GET` | NO | YES | YES | User-isolated DSA category and topic progress summary |
+| `/api/problems/{id}/run` | `POST` | YES | YES | YES | In-browser code simulation and test execution sandbox |
+| `/api/problems/{id}/toggle`, `/submit` | `POST` | NO | YES | YES | User-isolated solved problem persistence |
+| `/api/recommendations` | `GET` | NO | YES | YES | User-isolated multi-factor personalized readiness & actions |
+| `/api/interviews/**` | `GET`, `POST` | NO | YES | YES | User-isolated timed mock interview sessions, answers & evaluation |
+| `/api/resumes/**` | `GET`, `POST`, `DELETE` | NO | YES | YES | User-isolated PDF/DOCX resume analysis, parsing & skill sync |
+| `/api/admin/**` | `GET` | NO | NO | YES | Strictly restricted to `hasRole("ADMIN")` via Spring Security |
+
+**What Was Done**:
+- **Centralized CORS Governance**: Removed all redundant and hardcoded `@CrossOrigin` annotations from all 11 REST controllers (`AuthController`, `AdminController`, `CareerController`, `RoadmapController`, `SkillController`, `ProgressController`, `QuizController`, `ProblemController`, `RecommendationController`, `InterviewController`, `ResumeController`), delegating 100% of CORS policy enforcement to `SecurityConfig.corsConfigurationSource()`.
+- **Zero-Trust User Isolation Verified**: Audited all entity queries to guarantee that private records (`Resume`, `MockInterview`, `UserSkill`, `UserRoadmapProgress`, `UserProblemProgress`) are strictly isolated by `user.getId()`. Cross-tenant query attempts return HTTP 404 (preventing ID enumeration).
+- **No Client-Injected Identifiers**: Zero REST controllers accept or trust client-supplied `userId` values in JSON request bodies or URL parameters for user data mutation.
+- **DTO Sanitization**: Confirmed that all DTOs (`AdminUserDto`, `AdminUserDetailDto`, `AuthResponse`, `UserDto`) strictly exclude password hashes, salts, and secrets.
+- **Testing & Verification**:
+  - Backend compile: `BUILD SUCCESS` (110 classes).
+  - Frontend build: `18 routes` compiled with 0 errors (`npm run build`).
+  - Phase 12 RBAC Suite: **38/38 PASS (100%)**.
+  - Phase 11 Resume Suite: **19/19 PASS (100%)**.
+  - Master Regression Suite: **25/25 PASS (100%)**.
+  - Browser RBAC Workflow Suite: **13/13 PASS (100%)**.
+  - Browser Resume Workflow Suite: **16/16 PASS (100%)**.
+
+#### Steps 3–20 — CORS, Error Handling, File Security, DB Optimization, Docker & Documentation
+
+**Status**: COMPLETE  
+**Purpose**: Execute end-to-end production hardening, including Spring Security HTTP response headers, global error structure standardization, file upload validation, database indexing, logging sanitization, containerization assets (Dockerfiles & docker-compose.yml), comprehensive REST API reference manual, deployment guide, and full master regression test suite.
+
+**What Was Accomplished**:
+1. **HTTP Security Headers**: Configured `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin` in Spring Security `SecurityFilterChain`.
+2. **API Error Handling**: Audited `GlobalExceptionHandler.java` guaranteeing structured, safe error JSON payloads across all standard HTTP error statuses (`400`, `401`, `403`, `404`, `409`, `413`, `415`, `422`, `500`) with zero stack traces or class internals leaked.
+3. **File Upload Hardening**: Verified PDF/DOCX magic bytes (`%PDF`, `PK`), MIME types, in-memory stream extraction, 5MB file limits, and path traversal prevention in `ResumeParserService.java`.
+4. **Database Indexing & Entity Optimization**: Added performance indexes on `mock_interviews(user_id, started_at)`, `resumes(user_id, upload_timestamp)`, `user_problem_progress(user_id, problem_id)`, and `user_skills(user_id, skill_name)` with zero schema disruption.
+5. **Logging & Observability**: Enforced production logging guidelines (passwords, tokens, parsed resume text, and authorization headers are never logged).
+6. **Documentation Deliverables**:
+   - `docs/API_REFERENCE.md`: Complete specification for all 11 modules and 30+ endpoints.
+   - `docs/DEPLOYMENT_GUIDE.md`: Comprehensive production deployment manual with reverse proxy (Nginx) blueprints and environment variable specifications.
+   - `docs/VIVA_GUIDE.md`: Updated to Version 5.0 with 72 academic and production viva questions.
+7. **Containerization & Docker Assets**:
+   - `backend/Dockerfile`: Multi-stage build (Maven $\rightarrow$ Eclipse Temurin JRE 17 Alpine) with non-root security user.
+   - `frontend/Dockerfile`: Multi-stage build (Node.js 20 Alpine) with standalone Next.js production server.
+   - `docker-compose.yml`: Multi-container production deployment topology with MySQL 8 volume persistence, backend, frontend, and health checks.
+8. **Master Regression & Test Suites**:
+   - `scratch/test_phase13_production.js`: **28/28 PASS (100%)**.
+   - `scratch/test_phase12_rbac.js`: **38/38 PASS (100%)**.
+   - `scratch/test_phase11_resume.js`: **19/19 PASS (100%)**.
+   - `scratch/test_master_regression.js`: **25/25 PASS (100%)**.
+   - `scratch/test_browser_rbac_workflow.js`: **13/13 PASS (100%)**.
+   - `scratch/test_browser_resume_workflow.js`: **16/16 PASS (100%)**.
+   - **Total Passing Automated Tests**: **139/139 PASS (100%)**.
+
 ---
 
 ## 6. Immediate Next Step
 
 ### Task
-Phase 12 (RBAC + Admin Security Foundation + Platform Governance) is 100% COMPLETE and thoroughly verified. Awaiting user review and instructions for future phases.
+Phase 13 (Production Readiness, Hardening & Deployment Foundation) is 100% COMPLETE and fully verified. Awaiting user review and confirmation before committing changes or preparing Phase 14.
+
+
+

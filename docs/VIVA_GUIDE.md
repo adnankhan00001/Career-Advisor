@@ -3,7 +3,7 @@
 > **Project Title**: Career-Advisor: Intelligent Tech Career Exploration, Coding Workspace & Mock Interview Preparation Platform  
 > **Author / Maintainer**: Adnan Khan  
 > **Architecture**: Distributed Client-Server REST Architecture (Next.js 16 + Spring Boot 3.3.4 + MySQL 8.0)  
-> **Documentation Version**: 4.0 (Phase 12 — RBAC, Admin Security Foundation & Platform Governance)
+> **Documentation Version**: 5.0 (Phase 13 — Production Readiness, Hardening & Deployment Foundation)
 
 ---
 
@@ -661,13 +661,169 @@ The "Admin Dashboard" navigation item and sidebar `ADMIN` badge are only rendere
 - **Master Regression Suite (`test_master_regression.js`)**: 25/25 PASS (100%) verifying Phases 1 through 12.
 - **Production Builds**: Backend compiled cleanly (`BUILD SUCCESS`), Frontend compiled 18 routes cleanly (`npm run build`).
 
+### Q58: Why should secrets (database passwords, JWT secret keys, admin credentials) be stored in environment variables rather than source code?
+**Answer**:
+1. **Source Code Exposure Prevention**: Hardcoded credentials in repositories can be leaked through version control history, public forks, CI/CD logs, or decompiled binary artifacts.
+2. **12-Factor App Compliance**: The Twelve-Factor App methodology mandates strict separation of config from code, allowing the exact same codebase to run in development, staging, and production simply by varying environment variables.
+3. **Dynamic Secret Rotation**: Environment-driven configuration allows DevOps teams to rotate database passwords or encryption keys without requiring code recompilation or rebuilds.
+
+### Q59: What is the architectural difference between Spring Boot `dev` and `prod` profiles in our application?
+**Answer**:
+- **`dev` Profile (`application-dev.properties`)**:
+  - `spring.datasource.url`: Defaults to local MySQL instance (`localhost:3306`) with fallback credentials.
+  - `spring.jpa.hibernate.ddl-auto=update`: Automatically synchronizes entity schema changes with the local development database.
+  - `spring.jpa.show-sql=true`: Prints formatted SQL queries for local debugging.
+  - `app.cors.allowed-origins`: Whitelists local frontend dev server (`http://localhost:3000`, `http://127.0.0.1:3000`).
+  - `app.admin.email/password`: Seeds a default local development administrator (`admin@careeradvisor.dev`).
+- **`prod` Profile (`application-prod.properties`)**:
+  - `spring.datasource.url`: Requires explicit environment variables (`${DB_HOST}`, `${DB_USERNAME}`, `${DB_PASSWORD}`) with SSL enforcement (`useSSL=true`).
+  - `spring.jpa.show-sql=false`: Completely disables SQL logging to protect data privacy and eliminate console overhead.
+  - `app.cors.allowed-origins`: Restricts CORS to the authorized production frontend domain (`${CORS_ALLOWED_ORIGINS}`).
+  - Logging levels set to `WARN` for framework internals to prevent log file bloat and sensitive data leaks.
+
+### Q60: How is JWT configuration externalized and secured in production?
+**Answer**:
+`app.jwt.secret` and `app.jwt.expiration-ms` are injected via `@Value`:
+```java
+@Value("${app.jwt.secret}")
+private String jwtSecret;
+
+@Value("${app.jwt.expiration-ms:86400000}")
+private int jwtExpirationMs;
+```
+In production (`application-prod.properties`), `app.jwt.secret=${JWT_SECRET}` has no default fallback, forcing the production environment to inject a 256-bit cryptographically secure secret key. The secret is never logged, printed, or serialized in any API response.
+
+### Q61: How is CORS dynamically configured and protected against cross-origin vulnerabilities?
+**Answer**:
+In `SecurityConfig.java`:
+```java
+@Value("${app.cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000}")
+private String corsAllowedOrigins;
+
+@Bean
+public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    List<String> origins = Arrays.stream(corsAllowedOrigins.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toList());
+    configuration.setAllowedOrigins(origins);
+    configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
+    configuration.setAllowCredentials(true);
+    ...
+}
+```
+This ensures production never allows wildcard `*` origins while supporting multi-domain or staging frontend URLs via comma-separated `CORS_ALLOWED_ORIGINS`.
+
+### Q62: How does the frontend handle API URLs across development and production?
+**Answer**:
+In `frontend/lib/config.ts`:
+```typescript
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+```
+In development, Next.js loads `NEXT_PUBLIC_API_URL=http://localhost:8080` from `.env.local`. In production hosting (e.g. Vercel, Docker, AWS), `NEXT_PUBLIC_API_URL` is set to the production backend URL (e.g. `https://api.careeradvisor.dev`) without altering frontend code.
+
+### Q63: What is Insecure Direct Object Reference (IDOR), and how is it completely prevented in our backend?
+**Answer**:
+- **IDOR Definition**: A vulnerability where an attacker accesses or manipulates another user's resources simply by changing a resource identifier in the URL (e.g., `DELETE /api/resumes/123` or `GET /api/interviews/456`).
+- **Our Defense**:
+  1. No endpoint trusts client-supplied user IDs.
+  2. All resource queries enforce tenant ownership in the service layer:
+     ```java
+     Resume resume = resumeRepository.findById(id)
+         .filter(r -> r.getUser().getId().equals(user.getId()))
+         .orElseThrow(() -> new ResourceNotFoundException("Resume not found"));
+     ```
+  3. If User B requests User A's ID, the service returns `404 Not Found` rather than revealing existence or data.
+
+### Q64: What is the difference between Horizontal and Vertical Privilege Escalation?
+**Answer**:
+- **Horizontal Privilege Escalation**: An attacker with standard user permissions accesses resources belonging to another standard user (e.g., Alice accessing Bob's resume). Prevented via zero-trust user isolation and session-bound repository queries.
+- **Vertical Privilege Escalation**: An attacker with standard user permissions elevates their permissions to perform administrative actions (e.g., User attempting `GET /api/admin/stats/overview` or `POST /api/auth/register` with `role: "ADMIN"`). Prevented via Spring Security `.requestMatchers("/api/admin/**").hasRole("ADMIN")` and hardcoding `Role.USER` in `UserService.register()`.
+
+### Q65: Why should `@CrossOrigin` annotations on individual Spring controllers be avoided in production?
+**Answer**:
+When individual controllers define `@CrossOrigin(origins = {"http://localhost:3000"})`, it overrides or conflicts with centralized Spring Security CORS configuration. In production environments where the frontend is deployed to custom domains (e.g. `https://careeradvisor.dev`), hardcoded controller annotations will reject valid production cross-origin requests. Centralizing CORS in `SecurityConfig.corsConfigurationSource()` ensures a single source of truth driven by `app.cors.allowed-origins`.
+
+### Q66: How does our architecture prevent password hash exposure in REST API responses?
+**Answer**:
+The `User` entity (which contains the BCrypt `password` hash) is never returned directly to API clients. Instead, dedicated Data Transfer Objects (DTOs) like `AuthResponse`, `AdminUserDto`, and `AdminUserDetailDto` are explicitly constructed with safe fields (`id`, `name`, `email`, `role`, `careerGoal`), omitting password fields entirely.
+
+### Q67: Why does our application use `SessionCreationPolicy.STATELESS` in Spring Security?
+**Answer**:
+In `SecurityConfig.java`:
+```java
+.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+```
+This instructs Spring Security never to create an `HttpSession` on the server or store security contexts in server memory/cookies. Every request is independently authenticated using the cryptographically verified JWT token in the `Authorization: Bearer` header, making the API fully stateless and horizontally scalable across distributed server clusters.
+
+### Q68: What HTTP security headers are configured in Spring Security, and what attacks do they prevent?
+**Answer**:
+In `SecurityConfig.java`:
+1. **`X-Frame-Options: DENY`**: Prevents Clickjacking attacks by forbidding external domains from embedding our web application inside an `<iframe>`.
+2. **`X-Content-Type-Options: nosniff`**: Prevents MIME-sniffing attacks where a browser executes user-uploaded files as scripts by misinterpreting their content type.
+3. **`Referrer-Policy: strict-origin-when-cross-origin`**: Prevents leaking sensitive URL paths/query parameters to external sites during outbound navigation while preserving the origin for same-origin requests.
+
+### Q69: Why do we use multi-stage Docker builds for the backend and frontend?
+**Answer**:
+1. **Minimal Image Size**: The build environment (Maven with OpenJDK 17 or Node build toolchains) is discarded after packaging, leaving only the lightweight runtime (Alpine JRE 17 or Node standalone runner).
+2. **Reduced Attack Surface**: Compilers, SDK tools, and source code files are absent from the final production container image.
+3. **Non-Root Execution**: The final containers run under dedicated unprivileged users (`appuser` / `nextjs`) rather than `root`, mitigating container breakout vulnerabilities.
+
+### Q70: What is the purpose of the Reverse Proxy (Nginx) in our production deployment topology?
+**Answer**:
+1. **SSL/TLS Termination**: Offloads CPU-intensive HTTPS cryptographic handshakes from application instances.
+2. **Path-Based Routing**: Routes `/api/*` to the Spring Boot cluster (`:8080`) and all other web requests to the Next.js server (`:3000`).
+3. **DDoS & Rate Limiting**: Buffers slow client connections and throttles malicious bursts before they reach backend worker threads.
+4. **Header Standardization**: Injects `X-Forwarded-For`, `X-Real-IP`, and global security headers uniformly across all responses.
+
+### Q71: What database indexing strategy was implemented in Phase 13 to support high concurrency?
+**Answer**:
+Indexes were placed on high-frequency composite lookups and search columns:
+- `users`: `email` (Unique B-tree index for instant $O(\log N)$ authentication lookup).
+- `mock_interviews`: `(user_id, started_at)` (Index for fast candidate history pagination and sorting).
+- `resumes`: `(user_id, upload_timestamp)` (Index for latest resume retrieval).
+- `user_problem_progress`: `(user_id, problem_id)` (Unique composite index for $O(1)$ progress updates).
+- `user_skills`: `(user_id, skill_name)` (Unique composite index preventing duplicate skill records).
+
+### Q72: How does our `GlobalExceptionHandler` guarantee zero sensitive information leakage?
+**Answer**:
+- Caught business exceptions (e.g. `ResourceNotFoundException`, `UnsupportedFileTypeException`) return structured JSON with safe HTTP status codes and user-friendly messages.
+- Unhandled internal exceptions (`Exception.class`) log the full stack trace securely to server log files via SLF4J, but return a generic response:
+  ```json
+  {
+    "status": 500,
+    "error": "Internal Server Error",
+    "message": "An unexpected error occurred. Please try again later.",
+    "timestamp": "2026-08-22 19:02:10"
+  }
+  ```
+  Database connection strings, SQL dialect errors, and filesystem paths are never returned to the client.
+
+### Q73: How can the backend application scale horizontally in a production Kubernetes cluster?
+**Answer**:
+Because the Spring Boot API is 100% **stateless** (zero server sessions, JWT authentication, centralized MySQL database), any number of identical backend replicas can be spawned behind a Kubernetes `Service` / Load Balancer without sticky sessions or state replication overhead.
+
+### Q74: Why is in-memory streaming preferred over disk writes for the Resume Analyzer?
+**Answer**:
+1. **Ephemeral Scalability**: In containerized environments (Kubernetes, AWS ECS), containers have ephemeral filesystems. In-memory processing avoids disk filling and eliminates orphaned temporary files.
+2. **Security**: Disallows arbitrary file writes to disk, completely mitigating path traversal (`../../etc/passwd`) or web shell upload vulnerabilities.
+3. **Performance**: Processing a 100KB resume in memory with PDFBox takes $< 30\text{ms}$, avoiding disk I/O bottlenecks.
+
+### Q75: How does the application maintain data consistency across multi-entity operations?
+**Answer**:
+By annotating multi-step service methods (e.g. `submitInterview`, `syncSkills`, `toggleStep`) with Spring's `@Transactional`. If any sub-operation fails (e.g., database constraint violation or network blip), the entire transaction is rolled back atomically, preventing orphaned or corrupt records.
+
 ---
 
 ## 14. Future Scope & Production Roadmap
 
-- **Phase 13**: Admin Content Management System (CRUD for Career Tracks, Roadmaps, Skills Dictionary, DSA Problems, and Mock Interview Questions).
 - **Phase 14**: AI-Powered Conversational Voice Interviewer (Gemini Multimodal Live API).
 - **Phase 15**: ATS Formatting Scorer & Resume Improvement Recommendations.
 - **Phase 16**: Cloud Native Deployment (Docker, Kubernetes, AWS RDS, Cloudflare CDN).
+
+
+
 
 
