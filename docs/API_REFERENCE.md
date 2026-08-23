@@ -429,3 +429,242 @@
   }
   ```
 - **Error Codes**: `401 Unauthorized`, `400 Bad Request` (Empty message).
+
+---
+
+## 13. Persistent Personal AI Chatbot (`/api/conversations`)
+
+### 13.1 Create Persistent AI Conversation
+- **Endpoint**: `POST /api/conversations`
+- **Access**: Authenticated (owner derived strictly from JWT)
+- **Request Body** *(Optional)*:
+  ```json
+  {
+    "title": "Spring Boot Guidance"
+  }
+  ```
+- **Response** (`201 Created`):
+  ```json
+  {
+    "id": 1,
+    "title": "Spring Boot Guidance",
+    "conversationType": "USER_TO_AI",
+    "archived": false,
+    "messageCount": 0,
+    "createdAt": "2026-08-23T11:30:00",
+    "updatedAt": "2026-08-23T11:30:00",
+    "lastMessageAt": "2026-08-23T11:30:00",
+    "messages": []
+  }
+  ```
+
+### 13.2 List User Conversations
+- **Endpoint**: `GET /api/conversations`
+- **Access**: Authenticated
+- **Response** (`200 OK`): Array of user's `ConversationResponseDto` records ordered by `updatedAt DESC`.
+
+### 13.3 Get Conversation & Message Stream
+- **Endpoint**: `GET /api/conversations/{id}`
+- **Access**: Authenticated (Owner only)
+- **Response** (`200 OK`): `ConversationResponseDto` including chronological `messages` array.
+- **Error Codes**: `404 Not Found` (Zero-Trust IDOR protection if not owned).
+
+### 13.4 Send Message in Conversation
+- **Endpoint**: `POST /api/conversations/{id}/messages`
+- **Access**: Authenticated (Owner only)
+- **Request Body**:
+  ```json
+  {
+    "content": "What should I learn for Spring Boot to become a senior backend engineer?"
+  }
+  ```
+- **Response** (`200 OK`):
+  ```json
+  {
+    "conversationId": 1,
+    "conversationTitle": "Spring Boot Guidance",
+    "userMessage": {
+      "id": 1,
+      "conversationId": 1,
+      "senderType": "USER",
+      "senderName": "Alice Candidate",
+      "content": "What should I learn for Spring Boot to become a senior backend engineer?",
+      "sequenceNumber": 1,
+      "status": "SENT",
+      "createdAt": "2026-08-23T11:30:05"
+    },
+    "aiMessage": {
+      "id": 2,
+      "conversationId": 1,
+      "senderType": "AI",
+      "senderName": "OneStop AI Advisor",
+      "content": "Based on your verified skills and roadmap progress...",
+      "sequenceNumber": 2,
+      "status": "DELIVERED",
+      "createdAt": "2026-08-23T11:30:06"
+    },
+    "status": "SUCCESS",
+    "provider": "mock",
+    "model": "gemini-1.5-flash",
+    "tokensUsed": 65,
+    "latencyMs": 14
+  }
+  ```
+- **Error Codes**: `400 Bad Request` (Blank, oversized >4000 chars, or archived conversation), `404 Not Found` (Unowned conversation).
+
+### 13.5 Archive Conversation
+- **Endpoint**: `POST /api/conversations/{id}/archive`
+- **Access**: Authenticated (Owner only)
+- **Response** (`200 OK`): Updated conversation object with `archived: true`. Subsequent writes are rejected with `400 Bad Request`.
+
+### 13.6 Delete Conversation
+- **Endpoint**: `DELETE /api/conversations/{id}`
+- **Access**: Authenticated (Owner only)
+- **Response** (`200 OK`): `{"message": "Conversation deleted successfully"}`. Deletes conversation and cascades message deletion.
+
+---
+
+## 14. Real-Time Human Communication Endpoints (`/api/conversations` & `/ws`)
+
+### 14.1 Candidate Discovery Search
+- **Endpoint**: `GET /api/users/search?q={query}`
+- **Access**: Authenticated (`ROLE_USER` or `ROLE_ADMIN`)
+- **Query Parameter**: `q` (minimum 2 characters).
+- **Response** (`200 OK`): Safe candidate projection (omits password, email hash, contact details; includes `online` status; excludes caller).
+
+### 14.2 Start Direct Peer Conversation
+- **Endpoint**: `POST /api/conversations/user`
+- **Access**: Authenticated (`ROLE_USER` or `ROLE_ADMIN`)
+- **Request Body**:
+  ```json
+  {
+    "targetUserId": 2,
+    "initialMessage": "Hi Bob, let's practice system design!"
+  }
+  ```
+- **Response** (`201 Created`): `USER_TO_USER` conversation metadata with 2 participants.
+
+### 14.3 Start Admin Support Ticket
+- **Endpoint**: `POST /api/conversations/admin`
+- **Access**: Authenticated (`ROLE_USER`)
+- **Request Body**:
+  ```json
+  {
+    "subject": "Mock interview feedback inquiry",
+    "initialMessage": "Can you explain question #3 evaluation?"
+  }
+  ```
+- **Response** (`201 Created`): `USER_TO_ADMIN` support conversation metadata.
+
+### 14.4 List Human Conversations
+- **Endpoint**: `GET /api/conversations/human`
+- **Access**: Authenticated (`ROLE_USER` or `ROLE_ADMIN`)
+- **Response** (`200 OK`): List of user's active human conversations with participants and unread counters.
+
+### 14.5 Send Human Message
+- **Endpoint**: `POST /api/conversations/{id}/human-messages`
+- **Access**: Authenticated (Participant only)
+- **Request Body**: `{"content": "Sounds good, let's connect."}`
+- **Response** (`200 OK`): Created message with `sequenceNumber`, `status: "SENT"`, and broadcasts event via STOMP broker.
+
+### 14.6 Mark Conversation Read
+- **Endpoint**: `POST /api/conversations/{id}/read`
+- **Access**: Authenticated (Participant only)
+- **Response** (`200 OK`): Updates `lastReadAt`, marks unread messages as `READ`, and broadcasts `MESSAGE_READ` event.
+
+### 14.7 Emit Typing Indicator
+- **Endpoint**: `POST /api/conversations/{id}/typing`
+- **Access**: Authenticated (Participant only)
+- **Request Body**: `{"typing": true}`
+- **Response** (`200 OK`): Broadcasts `TYPING_STARTED` or `TYPING_STOPPED` to active conversation room.
+
+### 14.8 Admin Support Inbox
+- **Endpoint**: `GET /api/conversations/admin/inbox`
+- **Access**: Authenticated (`ROLE_ADMIN` strictly enforced)
+- **Response** (`200 OK`): All `USER_TO_ADMIN` support tickets with candidate information and message history.
+
+### 14.9 STOMP WebSocket Messaging Reference
+- **WebSocket Endpoint**: `/ws` (supports SockJS fallback)
+- **CONNECT Frame Authentication**: `Authorization: Bearer <jwt_token>` header required.
+- **Topic Subscriptions**:
+  - `/topic/conversations/{id}`: Real-time message push, read receipts, typing indicators, and WebRTC calling signaling (Participant authorization validated on subscribe).
+  - `/topic/presence`: Real-time candidate online/offline status updates (`USER_ONLINE`, `USER_OFFLINE`).
+
+---
+
+## 15. WebRTC Audio & Video Calling Endpoints (`/api/calls` & STOMP Signaling)
+
+### 15.1 Initiate Call
+- **Endpoint**: `POST /api/calls`
+- **Access**: Authenticated (`ROLE_USER` or `ROLE_ADMIN`)
+- **Request Body**:
+  ```json
+  {
+    "conversationId": 1,
+    "callType": "AUDIO"
+  }
+  ```
+  *(Supported `callType`: `AUDIO`, `VIDEO`)*
+- **Response** (`201 Created`):
+  ```json
+  {
+    "id": 10,
+    "conversationId": 1,
+    "callerId": 5,
+    "callerName": "Alice",
+    "receiverId": 8,
+    "receiverName": "Bob",
+    "callType": "AUDIO",
+    "status": "RINGING",
+    "startedAt": "2026-08-23T18:00:00Z",
+    "durationSeconds": 0
+  }
+  ```
+- **Error Codes**: `400 Bad Request` (Invalid conversation / AI conversation / self call), `404 Not Found` (Conversation not found), `409 Conflict` (`CALL_ALREADY_ACTIVE`).
+
+### 15.2 Accept Call
+- **Endpoint**: `POST /api/calls/{id}/accept`
+- **Access**: Authenticated (Receiver only)
+- **Response** (`200 OK`): Status transitions to `ACCEPTED`, records `answeredAt`, broadcasts `CALL_ACCEPTED` STOMP event.
+
+### 15.3 Reject Call
+- **Endpoint**: `POST /api/calls/{id}/reject`
+- **Access**: Authenticated (Receiver only)
+- **Request Body** *(Optional)*: `{"reason": "REJECTED"}`
+- **Response** (`200 OK`): Status transitions to `REJECTED`, broadcasts `CALL_REJECTED` STOMP event.
+
+### 15.4 Cancel Call
+- **Endpoint**: `POST /api/calls/{id}/cancel`
+- **Access**: Authenticated (Caller only)
+- **Response** (`200 OK`): Status transitions to `CANCELLED`, broadcasts `CALL_CANCELLED` STOMP event.
+
+### 15.5 End Call
+- **Endpoint**: `POST /api/calls/{id}/end`
+- **Access**: Authenticated (Caller or Receiver)
+- **Request Body** *(Optional)*: `{"reason": "USER_ENDED"}`
+- **Response** (`200 OK`): Status transitions to `ENDED`, calculates `durationSeconds`, broadcasts `CALL_ENDED` STOMP event.
+
+### 15.6 Send WebRTC Signal
+- **Endpoint**: `POST /api/calls/{id}/signal`
+- **Access**: Authenticated (Active Call Participant only)
+- **Request Body**:
+  ```json
+  {
+    "type": "WEBRTC_OFFER",
+    "sdp": "v=0\r\no=alice...",
+    "candidate": null
+  }
+  ```
+  *(Supported `type`: `WEBRTC_OFFER`, `WEBRTC_ANSWER`, `WEBRTC_ICE_CANDIDATE`)*
+- **Response** (`200 OK`): Broadcasts WebRTC signal payload to destination conversation channel `/topic/conversations/{conversationId}`.
+- **Error Codes**: `400 Bad Request` (Payload size > 50KB or invalid signal type), `404 Not Found` (Call not found or unauthorized).
+
+### 15.7 Get Active Calls
+- **Endpoint**: `GET /api/calls/active`
+- **Access**: Authenticated
+- **Response** (`200 OK`): Array of active incoming/outgoing `RINGING` or `ACCEPTED` call sessions for the authenticated user.
+
+### 15.8 Get Call History
+- **Endpoint**: `GET /api/calls/history`
+- **Access**: Authenticated
+- **Response** (`200 OK`): Chronological list of past call sessions involving the user, with durations, status, and termination reasons.

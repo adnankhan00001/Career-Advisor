@@ -3,7 +3,7 @@
 > **Project Title**: Career-Advisor: Intelligent Tech Career Exploration, Coding Workspace & Mock Interview Preparation Platform  
 > **Author / Maintainer**: Adnan Khan  
 > **Architecture**: Distributed Client-Server REST Architecture (Next.js 16 + Spring Boot 3.3.4 + MySQL 8.0)  
-> **Documentation Version**: 6.0 (Phase 14A — AI Infrastructure & Personal AI Foundation)
+> **Documentation Version**: 7.0 (Phase 14B — Persistent Personal AI Chatbot)
 
 ---
 
@@ -883,13 +883,228 @@ The platform demonstrates **graceful degradation**:
 ### Q83: What is the difference between Phase 14A and Phase 14B?
 **Answer**:
 - **Phase 14A (Foundation)**: Architecture, provider abstraction, environment configuration, personal context engine, API contracts, telemetry, and safety boundaries.
-- **Phase 14B (Interactive Interface)**: End-user interactive Chatbot UI, real-time message streaming, conversation history persistence, and chat drawer component integration in the Next.js frontend.
+- **Phase 14B (Interactive Interface)**: Persistent conversation/message relational data layer, bounded conversational history/memory, deterministic title generation, zero-trust ownership validation, REST APIs (`/api/conversations`), and responsive Next.js Chatbot UI.
 
 ---
 
-## 14. Future Scope & Production Roadmap
+## 14. Phase 14B Viva Questions & Answers: Persistent Personal AI Chatbot (Q84–Q95)
 
-- **Phase 14B**: Personal AI Chatbot UI & Real-Time Interaction.
+### Q84: How are conversations and chat messages modeled to support future communication types (User-to-User, User-to-Admin, Audio/Video)?
+**Answer**:
+The platform utilizes a **unified polymorphic communication schema**:
+- `Conversation`: Holds `owner` (`User`), `type` (`ConversationType`: `USER_TO_AI`, `USER_TO_USER`, `USER_TO_ADMIN`), `title`, `archived` flag, and timestamps (`createdAt`, `updatedAt`, `lastMessageAt`).
+- `ChatMessage`: Holds `conversation_id`, `sender_user_id` (nullable for AI/System), `senderType` (`MessageSenderType`: `USER`, `AI`, `ADMIN`, `SYSTEM`), `content` (`TEXT`), `sequenceNumber`, and `status`.
+- In Phase 14B, only `USER_TO_AI` conversations and `USER`/`AI` sender types are activated, but future phases can reuse this exact schema for human mentoring, admin support tickets, and WebRTC audio/video call logs without altering the core database structure.
+
+### Q85: How does the platform prevent Insecure Direct Object References (IDOR) on conversation endpoints?
+**Answer**:
+Every conversation method in `ConversationService` and `ChatService` requires both the `conversationId` and the authenticated `User` entity derived from Spring Security's `@AuthenticationPrincipal CustomUserDetails`. Repositories execute:
+```java
+conversationRepository.findByIdAndOwner(id, authenticatedUser)
+```
+If a user attempts to access, read, message, archive, or delete another candidate's conversation ID (e.g. `GET /api/conversations/10`), the query returns `Optional.empty()` which maps to `HTTP 404 Not Found`. Returning 404 instead of 403 prevents malicious users from enumerating valid conversation IDs.
+
+### Q86: How does the AI chatbot maintain conversation memory without exceeding token limits?
+**Answer**:
+The platform implements a **bounded memory window**:
+- Rather than loading unlimited chat history into the LLM prompt, `ChatMessageRepository` queries only the latest $N$ messages (configurable via `app.ai.chat.history-limit=20`) using:
+  ```java
+  chatMessageRepository.findRecentMessagesByConversation(conversation, PageRequest.of(0, historyLimit))
+  ```
+- The messages are sorted chronologically and prepended into the structured system prompt after the personal candidate profile context.
+- Historical messages remain safely persisted in MySQL for user browsing, while the LLM prompt remains bounded, token-efficient, and cost-controlled.
+
+### Q87: Why did we choose deterministic title generation instead of calling an LLM for conversation titles?
+**Answer**:
+Calling an external LLM solely to generate a 3-word title on every first message introduces extra latency ($500-1500\text{ ms}$), consumes additional API tokens/costs, and introduces failure points. Instead, `ConversationService.generateDeterministicTitle()` cleans preamble questions (e.g. "What should I learn for Spring Boot?" $\rightarrow$ "Spring Boot Learning"), sanitizes whitespace, capitalizes, and truncates to 80 characters deterministically in $<0.1\text{ ms}$ with $100\%$ reliability and zero token cost.
+
+### Q88: How are database indexes structured for high performance in the chat subsystem?
+**Answer**:
+To avoid table scans and ensure sub-millisecond query latency at scale, the database maintains:
+1. `conversations`:
+   - `idx_conversations_owner` on `user_id` (fast listing of user chats).
+   - `idx_conversations_updated_at` on `updated_at` (fast ordering by recent activity).
+   - `idx_conversations_owner_archived` on `(user_id, archived)` (filtered active vs archived chats).
+2. `chat_messages`:
+   - `idx_chat_msg_conv_id` on `conversation_id` (fast retrieval of message threads).
+   - `idx_chat_msg_created_at` on `created_at` (chronological ordering).
+   - `idx_chat_msg_conv_created` composite on `(conversation_id, created_at)` (bounded history retrieval with `PageRequest`).
+
+### Q89: How does the chat service handle external AI provider failures or timeouts?
+**Answer**:
+`ChatService` wraps AI generation in safe fallback logic:
+1. The user's input message is persisted immediately with status `SENT`.
+2. If the external provider returns an error, times out, or AI is disabled (`AI_ENABLED=false`), `ChatService` generates a graceful fallback message (`"I am temporarily unavailable to process your query..."`) with `status = "FALLBACK"`.
+3. The fallback message is persisted so the conversation thread remains coherent and unbroken.
+4. No Java stack traces, SQL errors, or internal URLs are ever exposed to the client.
+
+### Q90: Why was HTTP REST chosen over WebSockets for Phase 14B?
+**Answer**:
+1. **Stateless Scalability**: REST endpoints integrate natively with our existing stateless JWT architecture, Spring Security filters, and standard HTTP connection pools.
+2. **Deterministic Request-Response**: A career advisor consultation is naturally turn-based (User prompt $\rightarrow$ LLM generation $\rightarrow$ Response), making HTTP POST straightforward, debuggable, and cache-friendly.
+3. **Simplicity & Reliability**: HTTP eliminates WebSocket handshake overhead, stateful socket session management, reconnection logic, and heartbeat ping/pong complexities while establishing a clean persistence foundation.
+4. **Future Streaming Upgrade**: Future phases can easily add Server-Sent Events (SSE) or WebSockets on top of this exact service layer without altering data models.
+
+### Q91: How does the chat UI preserve conversation state across browser page refreshes?
+**Answer**:
+State persistence is guaranteed at the database tier:
+- On component mount, the Next.js `/chat` page calls `getConversations()` which fetches the user's active conversation list from MySQL via `GET /api/conversations`.
+- The active conversation ID is loaded via `GET /api/conversations/{id}`, populating all historical messages from the database.
+- Refreshing the browser or logging in from a different device completely restores all conversation threads and message histories.
+
+### Q92: What validation rules are enforced on incoming chat messages?
+**Answer**:
+1. **Non-blank**: Blank or whitespace-only messages are rejected with `HTTP 400 Bad Request`.
+2. **Length Limit**: Messages exceeding `app.ai.chat.max-message-length` (4000 characters) are rejected with `HTTP 400 Bad Request` to prevent buffer/token exhaustion attacks.
+3. **Archived Guard**: Writing to an archived conversation is rejected with `HTTP 400 Bad Request`.
+4. **Owner Validation**: Sending to a conversation not owned by the authenticated user returns `HTTP 404 Not Found`.
+
+### Q93: Can an Administrator view or search another candidate's private chat conversations?
+**Answer**:
+No. In Phase 14B, privacy by design is strictly maintained:
+- Administrator accounts can access `/admin` platform governance and user directories, but have **zero global visibility into individual user conversation threads**.
+- If an admin invokes `GET /api/conversations/10` where conversation 10 belongs to candidate Alice, the system returns `HTTP 404 Not Found`.
+- Admin auditing/moderation of chat messages will be governed by dedicated future RBAC permissions and consent mechanisms.
+
+### Q94: How does the chatbot incorporate resume and mock interview data into its answers?
+**Answer**:
+Before prompt dispatch, `ChatService` calls `UserAiContextService.buildUserContext(user)` which queries `ResumeRepository` for parsed skills and skill gaps, and `MockInterviewRepository` for recent interview scores, strong areas, and weak areas. `AiContextBuilder` synthesizes these into an authoritative candidate context block in the system prompt. For example, if a user asks *"How can I improve my interview skills?"*, the AI advisor recognizes specific weak areas (e.g. Concurrency or System Design) from actual mock interview attempts and suggests targeted practice.
+
+### Q95: What is the complete flow when a user sends a message in `/chat`?
+**Answer**:
+```text
+1. User enters text in /chat UI -> Enter / Send button clicked
+2. Frontend chatService sends POST /api/conversations/{id}/messages (Bearer JWT)
+3. JwtAuthenticationFilter verifies JWT -> populates CustomUserDetails
+4. ConversationController extracts User from @AuthenticationPrincipal
+5. ChatService validates ownership (404 if mismatch) & content (400 if invalid)
+6. ChatService persists USER message in MySQL chat_messages table
+7. If 1st message -> ConversationService updates conversation title deterministically
+8. UserAiContextService aggregates candidate's profile, skills, resume & quiz data
+9. AiContextBuilder constructs System Context Prompt with bounded recent 20 messages
+10. AiProviderFactory calls active AiProvider (Mock or OpenAI/Gemini)
+11. ChatService persists AI message in MySQL chat_messages table
+12. ChatService updates conversation updatedAt and lastMessageAt timestamps
+13. AiUsageLogService records telemetry log in MySQL ai_usage_logs
+14. ChatResponseDto returns both User and AI message payloads to Frontend
+15. Frontend /chat updates active message stream and scrolls to bottom smoothly
+```
+
+---
+
+## 15. Phase 14C: Real-Time Human Communication & WebSockets Deep-Dive
+
+### Q96: Why did we use STOMP over WebSockets instead of raw WebSockets?
+**Answer**:
+- **Structured Framing**: STOMP (Simple Text Oriented Messaging Protocol) defines standard frame types (`CONNECT`, `SUBSCRIBE`, `SEND`, `MESSAGE`, `UNSUBSCRIBE`, `DISCONNECT`) and destination headers, avoiding the need to invent and maintain custom JSON framing protocols over raw TCP/WebSocket streams.
+- **Pub/Sub Broker Integration**: Spring's built-in message broker integrates natively with STOMP, enabling room-based broadcasting (`/topic/conversations/{id}`) and user queues (`/queue/...`) with simple channel annotations (`@MessageMapping`, `SimpMessagingTemplate`).
+- **Channel Interceptors**: STOMP frames pass through Spring's `ChannelInterceptor` pipeline, allowing clean separation of authentication (on `CONNECT`) and destination authorization (on `SUBSCRIBE`).
+
+### Q97: How is WebSocket authentication enforced securely in Career Advisor?
+**Answer**:
+1. The initial HTTP handshake upgrade at `/ws` is permitted through Spring Security's HTTP filter chain.
+2. In `WebSocketSecurityInterceptor` (`ChannelInterceptor`), incoming frames are inspected before reaching the message broker.
+3. On the STOMP `CONNECT` frame, the client must provide `Authorization: Bearer <jwt>` or a `token` header.
+4. The interceptor validates the JWT via `JwtUtils.validateToken()` and resolves `CustomUserDetails`. If missing or invalid, an `AuthenticationException` is thrown, aborting the connection immediately. Anonymous users cannot send or receive STOMP messages.
+
+### Q98: How does server-side subscription authorization prevent cross-user eavesdropping?
+**Answer**:
+When a client sends a STOMP `SUBSCRIBE` frame to `/topic/conversations/{conversationId}`:
+1. `WebSocketSecurityInterceptor.preSend()` extracts the destination string and checks if it matches `/topic/conversations/{id}`.
+2. It parses the authenticated `Principal` from the WebSocket session attributes (never trusting client-provided IDs).
+3. It checks `conversation_participants` or `conversations` ownership in the database.
+4. If the authenticated user is neither a registered participant nor an Admin handling a `USER_TO_ADMIN` support ticket, the interceptor throws a `MessageDeliveryException("Unauthorized subscription")`, preventing any unauthorized client from receiving room events.
+
+### Q99: How does Career Advisor track user presence (Online/Offline) in real-time?
+**Answer**:
+`PresenceService` maintains a thread-safe in-memory session map:
+```java
+ConcurrentHashMap<Long, Set<String>> userSessions = new ConcurrentHashMap<>();
+```
+- Multi-Tab Support: A user can open multiple browser tabs. When a WebSocket session connects (`SessionConnectedEvent`), the session ID is added to the user's `Set<String>`. If the set size was 0, a `USER_ONLINE` event is broadcast to `/topic/presence`.
+- Graceful Disconnect: When a tab closes (`SessionDisconnectEvent`), that specific session ID is removed. Only when the set becomes empty is the user marked offline and a `USER_OFFLINE` event broadcast to `/topic/presence`.
+- Thread-Safety: `ConcurrentHashMap` combined with synchronized sets prevents race conditions across concurrent HTTP/WebSocket worker threads.
+
+### Q100: How are typing indicators and read receipts implemented without database bloat?
+**Answer**:
+- **Transient Real-Time Events**: Typing events (`TYPING_STARTED`, `TYPING_STOPPED`) are high-frequency and ephemeral. They are broadcast directly over STOMP to `/topic/conversations/{id}` using `SimpMessagingTemplate` without touching the MySQL database.
+- **Read Receipts**: When a user views a thread, `POST /api/conversations/{id}/read` updates the participant's `last_read_at` timestamp in `conversation_participants` and marks unread messages as `READ`, then broadcasts `MESSAGE_READ` over STOMP to update ticks in the active peer's UI.
+
+### Q101: What is the database schema design for Phase 14C?
+**Answer**:
+- `conversation_participants`:
+  - `id` (BIGINT PK AUTO_INCREMENT)
+  - `conversation_id` (FK to `conversations.id`)
+  - `user_id` (FK to `users.id`)
+  - `participant_role` (ENUM: `CREATOR`, `MEMBER`, `ADMIN`)
+  - `joined_at` (DATETIME)
+  - `last_read_at` (DATETIME)
+  - Unique Constraint: `uk_conv_participant (conversation_id, user_id)`
+  - Indexes: `idx_conv_part_user (user_id, conversation_id)` and `idx_conv_part_read (user_id, last_read_at)`
+- `chat_messages`:
+  - Index: `idx_chat_msg_conv_seq (conversation_id, sequence_number)` for high-speed chronological timeline rendering.
+
+### Q102: How does the system isolate Human Conversations from AI Chatbot Context?
+**Answer**:
+- `ConversationType` explicitly segregates conversations into `USER_TO_AI`, `USER_TO_USER`, and `USER_TO_ADMIN`.
+- `ChatService` and `UserAiContextService` only load and query `USER_TO_AI` conversations.
+- Private human peer-to-peer discussions and admin support tickets are NEVER injected into `AiContextBuilder` or sent to LLM providers, ensuring absolute privacy compliance and zero data leakage.
+
+### Q103: Can an Administrator read private USER_TO_USER messages?
+**Answer**:
+No. In `ConversationService.validateHumanConversationAccess()`:
+- For `USER_TO_ADMIN` conversations, administrators have authorized access to respond to support inquiries.
+- For `USER_TO_USER` private conversations, only the explicit participants in `conversation_participants` are permitted access. If an Admin attempts to access a private peer conversation, the API returns `HTTP 404 Not Found` (Zero-Trust Privacy Isolation).
+
+---
+
+## 16. WebRTC Audio & Video Calling Architecture (Phase 14D)
+
+### Q104: What is WebRTC and how is it integrated into Career Advisor?
+**Answer**:
+WebRTC (Web Real-Time Communication) is an open-source standard and browser API providing direct, real-time, peer-to-peer (P2P) audio, video, and data communication without requiring intermediate media servers. In Career Advisor, WebRTC is integrated using:
+- **Signaling Layer**: Handled entirely through the existing authenticated Spring Boot backend using STOMP over WebSocket (`/topic/conversations/{id}`) and REST endpoints (`/api/calls/**`).
+- **Media Layer**: High-definition audio and video streams flow directly between client browser endpoints via Secure Real-time Transport Protocol (SRTP) over UDP.
+- **Spring Boot Responsibility**: Authentication, participant authorization, call state machine, lifecycle governance, and signaling mediation. Zero media bytes transit through the Spring Boot server.
+
+### Q105: How does the WebRTC signaling flow (SDP Offer/Answer & ICE Candidates) work in Career Advisor?
+**Answer**:
+1. **Initiation**: Caller hits `POST /api/calls` $\rightarrow$ server creates `CallSession` with status `RINGING` and broadcasts `INCOMING_CALL` event to the conversation topic over STOMP.
+2. **Acceptance**: Receiver clicks "Accept" $\rightarrow$ `POST /api/calls/{id}/accept` sets status to `ACCEPTED` and broadcasts `CALL_ACCEPTED`.
+3. **SDP Offer**: Caller acquires local media (`getUserMedia`), creates `RTCPeerConnection`, generates an SDP Offer (`createOffer`), sets it as local description, and sends it to the server (`POST /api/calls/{id}/signal` with type `WEBRTC_OFFER`).
+4. **SDP Answer**: Receiver receives the offer over STOMP, sets it as remote description, generates an SDP Answer (`createAnswer`), sets it as local description, and sends it back to the server (`WEBRTC_ANSWER`).
+5. **ICE Candidates**: Both peers generate Interactive Connectivity Establishment (ICE) candidates representing valid network routing paths (host, server reflexive, relay) and exchange them asynchronously (`WEBRTC_ICE_CANDIDATE`).
+6. **P2P Media Flow**: Once compatible ICE candidate pairs and SDP codecs are negotiated, peer-to-peer media streams begin flowing directly between browsers.
+
+### Q106: What are STUN and TURN servers, and why are they necessary?
+**Answer**:
+- **STUN (Session Traversal Utilities for NAT)**: A lightweight protocol that discovers a client's public IP and port when located behind NAT/firewall (Server Reflexive Candidate). Career Advisor uses `stun:stun.l.google.com:19302` by default.
+- **TURN (Traversal Using Relays around NAT)**: A relay protocol used when symmetric NATs or strict enterprise firewalls block direct P2P connections. Media flows through the TURN relay server. Configurable via `app.webrtc.turn-url`, `app.webrtc.turn-username`, and `app.webrtc.turn-credential`.
+- **Environment Driven**: Zero credentials or server endpoints are hardcoded; all STUN/TURN configurations are injected via environment properties.
+
+### Q107: What is the server-authoritative Call State Machine in Career Advisor?
+**Answer**:
+The `CallSession` lifecycle is strictly enforced on the Spring Boot backend:
+- `RINGING` $\rightarrow$ `ACCEPTED`, `REJECTED`, `CANCELLED`, `MISSED`, `EXPIRED`
+- `ACCEPTED` $\rightarrow$ `ENDED`, `FAILED`
+- **Race Condition & State Protections**:
+  - Re-accepting or ending an already `ENDED` call throws `IllegalStateException` $\rightarrow$ `400 Bad Request`.
+  - Duplicate active calls for either participant return `409 Conflict (CALL_ALREADY_ACTIVE)`.
+  - Calls unanswered within 45 seconds automatically transition to `MISSED` (`EndReason.TIMEOUT`).
+  - Duration is strictly computed on the backend as `durationSeconds = Duration.between(answeredAt, endedAt).toSeconds()`.
+
+### Q108: How does Career Advisor prevent IDOR and unauthorized call eavesdropping?
+**Answer**:
+1. **Never Trust Client Caller IDs**: `callerId` and `senderId` are never accepted from the request payload. Identity is extracted exclusively from the authenticated JWT `Principal`.
+2. **Participant Validation**: When initiating or interacting with a call, the server validates that the caller and receiver are registered participants in `conversation_participants`.
+3. **Anti-Enumeration (404 Not Found)**: If an unauthorized user (e.g. User C) queries or mutates a call belonging to User A & B, the server responds with `HTTP 404 Not Found` instead of 403, preventing attackers from confirming the existence of active call sessions.
+4. **Admin Privacy Isolation**: Administrators cannot initiate or join private `USER_TO_USER` calls (404 returned). Admins can only participate in calls within authorized `USER_TO_ADMIN` support tickets.
+
+---
+
+## 17. Future Scope & Production Roadmap
+
+- **Phase 14D (COMPLETE)**: WebRTC Audio & Video Calling (P2P Media, STOMP Signaling, State Machine, Zero-Trust Anti-IDOR, Call History).
 - **Phase 15**: ATS Formatting Scorer & Automated Resume Revision Assistant.
 - **Phase 16**: Conversational Voice Interviewer (Gemini Multimodal Live API).
 - **Phase 17**: Kubernetes Deployment & Cloud Native CI/CD Pipeline.

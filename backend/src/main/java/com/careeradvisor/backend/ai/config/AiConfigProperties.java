@@ -48,4 +48,24 @@ public class AiConfigProperties {
      * HTTP client call timeout in seconds.
      */
     private int timeoutSeconds = 30;
+
+    /**
+     * Maximum character length for an incoming chat message.
+     */
+    private int chatMaxMessageLength = 4000;
+
+    /**
+     * Maximum number of recent historical messages included in AI context memory.
+     */
+    private int chatHistoryLimit = 20;
+
+    /**
+     * Maximum character length for auto-generated conversation titles.
+     */
+    private int chatTitleMaxLength = 80;
+
+    /**
+     * Whether persistent personal AI chat feature is enabled.
+     */
+    private boolean chatEnabled = true;
 }

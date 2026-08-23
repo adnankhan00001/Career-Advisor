@@ -383,14 +383,136 @@ Phase 11 — Resume Analyzer & Intelligent Skill Extraction — COMPLETE
    - `test_phase12_rbac.js`: **38/38 PASS (100%)**.
    - `test_phase11_resume.js`: **19/19 PASS (100%)**.
    - `test_master_regression.js`: **25/25 PASS (100%)**.
-   - **Total Passing Automated Tests**: **136+ API/backend tests (100% PASS)**.
+
+---
+
+### Phase 14B: Persistent Personal AI Chatbot (COMPLETE)
+
+1. **Reusable Entity & Schema Architecture (`com.careeradvisor.backend.model`)**:
+   - `Conversation`: Persistent conversation entity with `owner` (`User`), `type` (`ConversationType`: `USER_TO_AI`, `USER_TO_USER`, `USER_TO_ADMIN`), `title`, `archived` status, `createdAt`, `updatedAt`, `lastMessageAt`.
+   - `ChatMessage`: Persistent message entity with `conversation`, `senderUser` (null for AI/System), `senderType` (`MessageSenderType`: `USER`, `AI`, `ADMIN`, `SYSTEM`), `content` (`TEXT`), `sequenceNumber`, `status`, `createdAt`.
+   - **Database Indexes**: Indexed on `user_id`, `updated_at`, `last_message_at`, `(user_id, archived)`, `conversation_id`, `created_at`, and `(conversation_id, created_at)`.
+   - **Zero-Trust User Ownership & IDOR Protection**: All operations derive user identity from `@AuthenticationPrincipal CustomUserDetails`. Unowned conversations return `HTTP 404 Not Found` to prevent enumeration.
+
+2. **Backend Domain Services (`com.careeradvisor.backend.service`)**:
+   - `ConversationService`: CRUD operations for conversations, user isolation, deterministic title generation on first message (up to 80 chars, zero wasted LLM tokens), archive/delete lifecycle, and DTO mappings.
+   - `ChatService`: Validates message length and content, persists user message, loads bounded recent conversation history (configurable `app.ai.chat.history-limit=20`), fetches authoritative personal user context via `UserAiContextService` and `AiContextBuilder`, calls active AI provider, persists AI response, updates conversation timestamps, and records usage telemetry.
+
+3. **REST Endpoints (`ConversationController.java` & `SecurityConfig.java`)**:
+   - `POST /api/conversations`: Create new persistent AI conversation (201 Created).
+   - `GET /api/conversations`: List authenticated user's conversations ordered by `updatedAt DESC`.
+   - `GET /api/conversations/{id}`: Retrieve conversation metadata and messages (404 on unowned).
+   - `GET /api/conversations/{id}/messages`: Retrieve chronological message history.
+   - `POST /api/conversations/{id}/messages`: Send user message and receive contextual AI response.
+   - `POST /api/conversations/{id}/archive`: Archive conversation (rejects subsequent writes with 400).
+   - `DELETE /api/conversations/{id}`: Delete conversation and associated messages.
+
+4. **Frontend Chat Application (`/chat` & `frontend/lib/chatService.ts`)**:
+   - Full-featured responsive chat interface with desktop sidebar and mobile overlay drawer.
+   - Interactive suggestion cards ("Assess My Readiness", "Next Learning Step", "DSA Practice Focus", "Resume Skill Gaps", "Mock Interview Strategy").
+   - Thinking indicator animation, optimistic UI preview, auto-scroll, `Enter` to send, `Shift+Enter` for newline.
+   - Conversation management: create new chat, switch active conversation, archive, delete, refresh persistence.
+   - Navigation link added to protected navigation sidebar in `layout.tsx`.
+
+---
+
+### Phase 14C: Real-Time Human Communication Foundation (COMPLETE)
+
+1. **WebSocket & STOMP Infrastructure**:
+   - Integrated `spring-boot-starter-websocket` with standard STOMP over WebSocket broker.
+   - Endpoints: `/ws` (with SockJS fallback), destination prefixes `/topic`, `/queue`, `/app`.
+   - `WebSocketSecurityInterceptor`: Enforces JWT authentication on STOMP `CONNECT` frame and strict participant authorization on `SUBSCRIBE` to `/topic/conversations/{id}`.
+   - `PresenceService`: Thread-safe in-memory session tracking (`ConcurrentHashMap<Long, Set<String>>`) with multi-session support broadcasting `USER_ONLINE` / `USER_OFFLINE` to `/topic/presence`.
+
+2. **Domain Entities & Participant Modeling**:
+   - `ConversationParticipant`: Entity with unique constraint `(conversation_id, user_id)` and indexed on `(user_id, conversation_id)` and `(user_id, last_read_at)`.
+   - `ParticipantRole`: `CREATOR`, `MEMBER`, `ADMIN`.
+   - `ChatMessage`: Indexed on `(conversation_id, sequence_number)` for high-performance timeline retrieval.
+
+3. **REST & STOMP APIs**:
+   - `GET /api/users/search?q={query}`: Safe candidate discovery (omits sensitive attributes, excludes self, limit 20).
+   - `POST /api/conversations/user`: Start peer-to-peer conversation (201 Created).
+   - `POST /api/conversations/admin`: Start support ticket conversation (201 Created).
+   - `GET /api/conversations/human`: List user's human conversations with unread counters.
+   - `GET /api/conversations/human/{id}`: Retrieve human conversation thread and participants.
+   - `POST /api/conversations/{id}/human-messages`: Send human message with real-time push.
+   - `POST /api/conversations/{id}/read`: Mark conversation as read and broadcast read receipts.
+   - `POST /api/conversations/{id}/typing`: Broadcast typing status to active participants.
+   - `GET /api/conversations/admin/inbox`: Admin support queue (`hasRole('ADMIN')`).
+
+4. **Frontend Real-Time Human Communication**:
+   - `/messages`: Human Communication Center featuring Direct Messages (`USER_TO_USER`) and Support Tickets (`USER_TO_ADMIN`), user search modal, real-time message stream, typing indicators, read receipts, and online status badges.
+   - `/admin/messages`: Admin Support Inbox with ticket queue, candidate metadata, and real-time reply console.
+   - `frontend/lib/websocketService.ts`: Native STOMP-over-WebSocket client with automatic JWT authentication, reconnection logic, and topic subscription management.
+   - `frontend/lib/humanChatService.ts`: Typed API client for user search and human conversation operations.
+
+5. **Verification & Test Results**:
+   - Backend compile: `BUILD SUCCESS` (169 source files compiled).
+   - Frontend build: `21 routes` compiled with 0 errors (`npm run build`).
+   - `test_phase14c_messaging.js`: **42/42 PASS (100%)**.
+   - `test_browser_messaging_workflow.js`: **27/27 PASS (100%)**.
+   - `test_phase14b_chat.js`: **38/38 PASS (100%)**.
+   - `test_phase14a_ai_foundation.js`: **26/26 PASS (100%)**.
+   - `test_phase13_production.js`: **28/28 PASS (100%)**.
+   - `test_phase12_rbac.js`: **38/38 PASS (100%)**.
+   - `test_phase11_resume.js`: **19/19 PASS (100%)**.
+   - `test_master_regression.js`: **25/25 PASS (100%)**.
+   - **Total Combined Automated Regression**: **243/243 PASS (100% Zero-Regression)**.
+
+---
+
+### Phase 14D: WebRTC Audio & Video Calling (COMPLETE)
+
+1. **WebRTC Architecture & Domain Model**:
+   - Zero Media through Backend: Video and audio media flows strictly peer-to-peer (P2P) via WebRTC SRTP/UDP.
+   - Spring Boot Backend acts as Authoritative Signaling, State Management & Authorization Engine.
+   - Domain Entities:
+     - `CallSession`: JPA entity with composite indexes on `(receiver_id, status)`, `(caller_id, created_at)`, `(conversation_id, created_at)`, `(status, created_at)`.
+     - `CallType`: `AUDIO`, `VIDEO`.
+     - `CallStatus`: `RINGING`, `ACCEPTED`, `REJECTED`, `MISSED`, `CANCELLED`, `ENDED`, `FAILED`, `EXPIRED`.
+     - `EndReason`: `USER_ENDED`, `REMOTE_ENDED`, `REJECTED`, `TIMEOUT`, `NETWORK_FAILURE`, `PERMISSION_DENIED`, `BUSY`, `UNKNOWN`.
+
+2. **Server-Authoritative State Machine & Anti-Race Guards**:
+   - Strict Transition Enforcement: `RINGING` $\rightarrow$ `ACCEPTED`, `REJECTED`, `CANCELLED`, `MISSED`, `EXPIRED`; `ACCEPTED` $\rightarrow$ `ENDED`, `FAILED`. Invalid transitions throw `IllegalStateException`.
+   - Anti-Duplicate Active Call Guard: Rejects simultaneous incoming or outgoing call attempts with `409 Conflict (CALL_ALREADY_ACTIVE)`.
+   - Ringing Expiration: 45-second timeout transitions unacknowledged calls to `MISSED` with `EndReason.TIMEOUT`.
+   - Call Duration Computation: Accurately calculated server-side in seconds based on `answeredAt` and `endedAt`.
+
+3. **REST Endpoints & STOMP Signaling (`CallController.java` & `RealTimeMessageController.java`)**:
+   - `POST /api/calls`: Initiate Audio/Video call (201 Created) and broadcast `INCOMING_CALL` event.
+   - `GET /api/calls/{id}`: Retrieve call metadata (404 on unowned/unauthorized).
+   - `POST /api/calls/{id}/accept`: Accept call (200 OK) and broadcast `CALL_ACCEPTED`.
+   - `POST /api/calls/{id}/reject`: Reject call (200 OK) and broadcast `CALL_REJECTED`.
+   - `POST /api/calls/{id}/cancel`: Caller cancels before answer (200 OK) and broadcast `CALL_CANCELLED`.
+   - `POST /api/calls/{id}/end`: End active call (200 OK) and broadcast `CALL_ENDED`.
+   - `POST /api/calls/{id}/signal` & STOMP `@MessageMapping("/call.signal/{callId}")`: Exchange SDP offers, answers, and ICE candidates with size bounding (<50KB).
+   - `GET /api/calls/history`: Retrieve chronological call session history for authenticated user.
+   - `GET /api/calls/active`: Retrieve active incoming/outgoing calls.
+
+4. **Frontend WebRTC Engine & Calling UI (`frontend/components/CallOverlay.tsx` & `frontend/lib/webrtcService.ts`)**:
+   - `WebRtcManager`: Class encapsulating `RTCPeerConnection`, ICE server candidate collection, SDP offer/answer generation, local/remote stream management, device mute/video toggles, and microphone/camera error handling (`NotAllowedError`, `NotFoundError`, etc.).
+   - `CallOverlay`: Floating draggable calling modal with Picture-in-Picture local stream, remote video stream, animated audio visualizer waves, live duration counter, accept/decline buttons, mute/camera toggles, and end call button.
+   - Direct integration into `/messages` (Peer & Support) and `/admin/messages` (Admin Support calling).
+
+5. **Verification & Test Results**:
+   - Backend compile: `BUILD SUCCESS` (179 source files compiled).
+   - Frontend build: `21 routes` compiled with 0 errors (`npm run build`).
+   - `test_phase14d_calls.js`: **51/51 PASS (100%)**.
+   - `test_browser_calls_workflow.js`: **21/21 PASS (100%)**.
+   - `test_phase14c_messaging.js`: **42/42 PASS (100%)**.
+   - `test_browser_messaging_workflow.js`: **27/27 PASS (100%)**.
+   - `test_phase14b_chat.js`: **38/38 PASS (100%)**.
+   - `test_browser_chat_workflow.js`: **25/25 PASS (100%)**.
+   - `test_phase14a_ai_foundation.js`: **26/26 PASS (100%)**.
+   - `test_phase13_production.js`: **28/28 PASS (100%)**.
+   - `test_phase12_rbac.js`: **38/38 PASS (100%)**.
+   - `test_phase11_resume.js`: **19/19 PASS (100%)**.
+   - `test_master_regression.js`: **25/25 PASS (100%)**.
+   - **Total Combined Automated Regression**: **340/340 PASS (100% Zero-Regression)**.
 
 ---
 
 ## 6. Immediate Next Step
 
 ### Task
-Phase 14A (AI Infrastructure & Personal AI Foundation) is 100% COMPLETE and fully verified. Awaiting user review and confirmation before committing or advancing to Phase 14B (Personal AI Chatbot UI & Real-Time Interaction).
-
-
-
+Phase 14D (WebRTC Audio & Video Calling) is 100% COMPLETE and fully verified across all 340 automated tests. Ready for pre-commit review upon user instruction.

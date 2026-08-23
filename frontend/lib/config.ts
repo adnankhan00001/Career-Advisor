@@ -1,6 +1,9 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
+export const WS_BASE_URL =
+  process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
+
 export const API_ENDPOINTS = {
   AUTH: {
     REGISTER: `${API_BASE_URL}/api/auth/register`,
@@ -75,4 +78,47 @@ export const API_ENDPOINTS = {
     CONTEXT: `${API_BASE_URL}/api/ai/context`,
     CHAT: `${API_BASE_URL}/api/ai/chat`,
   },
+  USERS: {
+    SEARCH: `${API_BASE_URL}/api/users/search`,
+  },
+  CONVERSATIONS: {
+    BASE: `${API_BASE_URL}/api/conversations`,
+    DETAIL: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}`,
+    MESSAGES: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}/messages`,
+    ARCHIVE: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}/archive`,
+    USER: `${API_BASE_URL}/api/conversations/user`,
+    ADMIN: `${API_BASE_URL}/api/conversations/admin`,
+    HUMAN_LIST: `${API_BASE_URL}/api/conversations/human`,
+    HUMAN_DETAIL: (id: number | string) => `${API_BASE_URL}/api/conversations/human/${id}`,
+    HUMAN_MESSAGES: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}/human-messages`,
+    READ: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}/read`,
+    TYPING: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}/typing`,
+    ADMIN_INBOX: `${API_BASE_URL}/api/conversations/admin/inbox`,
+  },
+  CALLS: {
+    BASE: `${API_BASE_URL}/api/calls`,
+    DETAIL: (id: number | string) => `${API_BASE_URL}/api/calls/${id}`,
+    ACCEPT: (id: number | string) => `${API_BASE_URL}/api/calls/${id}/accept`,
+    REJECT: (id: number | string) => `${API_BASE_URL}/api/calls/${id}/reject`,
+    CANCEL: (id: number | string) => `${API_BASE_URL}/api/calls/${id}/cancel`,
+    END: (id: number | string) => `${API_BASE_URL}/api/calls/${id}/end`,
+    SIGNAL: (id: number | string) => `${API_BASE_URL}/api/calls/${id}/signal`,
+    HISTORY: `${API_BASE_URL}/api/calls/history`,
+    ACTIVE: `${API_BASE_URL}/api/calls/active`,
+  },
+};
+
+export const WEBRTC_CONFIG = {
+  ICE_SERVERS: [
+    { urls: process.env.NEXT_PUBLIC_WEBRTC_STUN_URL || "stun:stun.l.google.com:19302" },
+    ...(process.env.NEXT_PUBLIC_WEBRTC_TURN_URL
+      ? [
+          {
+            urls: process.env.NEXT_PUBLIC_WEBRTC_TURN_URL,
+            username: process.env.NEXT_PUBLIC_WEBRTC_TURN_USERNAME || "",
+            credential: process.env.NEXT_PUBLIC_WEBRTC_TURN_CREDENTIAL || "",
+          },
+        ]
+      : []),
+  ],
 };

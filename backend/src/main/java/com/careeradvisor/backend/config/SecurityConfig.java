@@ -98,14 +98,14 @@ public class SecurityConfig {
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/auth/health", "/api/auth/**", "/auth/**", "/api/ai/health").permitAll()
+                        .requestMatchers("/", "/auth/health", "/api/auth/**", "/auth/**", "/api/ai/health", "/ws/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/problems/*/run").permitAll()
                         .requestMatchers("/api/problems/progress/**", "/api/problems/*/toggle", "/api/problems/*/submit").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/careers/**", "/api/roadmaps/**", "/api/problems/**").permitAll()
                         .requestMatchers("/quiz/**", "/api/quiz/submit").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/skills/**", "/api/progress/**", "/api/quiz/latest", "/api/recommendations/**", "/api/interviews/**", "/api/resumes/**", "/api/ai/**").authenticated()
+                        .requestMatchers("/api/skills/**", "/api/progress/**", "/api/quiz/latest", "/api/recommendations/**", "/api/interviews/**", "/api/resumes/**", "/api/ai/**", "/api/conversations/**", "/api/users/**", "/api/calls/**").authenticated()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 );

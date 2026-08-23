@@ -34,8 +34,13 @@ export default function ProtectedLayout({
 
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: "📊" },
+    { label: "AI Career Advisor", href: "/chat", icon: "🤖" },
+    { label: "Messages", href: "/messages", icon: "💬" },
     ...(user?.role === "ADMIN"
-      ? [{ label: "Admin Dashboard", href: "/admin", icon: "🛡️" }]
+      ? [
+          { label: "Admin Dashboard", href: "/admin", icon: "🛡️" },
+          { label: "Support Inbox", href: "/admin/messages", icon: "📬" },
+        ]
       : []),
     { label: "Resume Analyzer", href: "/resume", icon: "📄" },
     { label: "Mock Interview", href: "/mock-interview", icon: "🎯" },
@@ -48,6 +53,9 @@ export default function ProtectedLayout({
   ];
 
   const getPageTitle = () => {
+    if (pathname.startsWith("/chat")) return "OneStop AI Career Advisor";
+    if (pathname.startsWith("/messages")) return "Human Communication Center";
+    if (pathname.startsWith("/admin/messages")) return "Admin Support Inbox";
     if (pathname.startsWith("/admin/users")) return "Admin User Governance";
     if (pathname.startsWith("/admin")) return "Admin Platform Governance";
     if (pathname.startsWith("/resume")) return "Resume Analyzer & Skill Match";
