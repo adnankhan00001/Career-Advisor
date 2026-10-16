@@ -691,16 +691,51 @@ Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progre
 
 ---
 
+
+---
+
+### Phase 16 — Production Cloud Deployment & Live Verification
+
+#### Status: IN PROGRESS (Backend & Database LIVE, Frontend Auth Pending)
+- **Date**: 2026-10-16
+- **Architecture**:
+  - **Backend**: Spring Boot 3.3.4 (Java 17) container deployed on Railway (`https://backend-production-f4cb.up.railway.app`)
+  - **Database**: Railway Managed MySQL 8.0 (`mysql.railway.internal:3306`)
+  - **Frontend**: Next.js 16.2.3 (React 19.2.4) target on Vercel
+- **Railway Infrastructure Details**:
+  - Railway Project: `career-advisor` (`f4707965-051f-448c-b1c0-da6d504cc297`)
+  - Environment: `production` (`c8c4ecef-4e5c-46e0-a758-2b1acd6d0600`)
+  - Database Service: `MySQL` (`7670d1d4-08ce-43fe-9bd3-1ad913f0418f`), Status: `● Online`
+  - Backend Service: `backend` (`f13e69ff-c063-4709-8a2d-1e0b8938dbbd`), Status: `● Online`
+  - Public Domain: `https://backend-production-f4cb.up.railway.app`
+- **Environment Variables Configured on Railway `backend`**:
+  - `SPRING_PROFILES_ACTIVE`: `prod`
+  - `MYSQLHOST`: `${{MySQL.MYSQLHOST}}`
+  - `MYSQLPORT`: `${{MySQL.MYSQLPORT}}`
+  - `MYSQLDATABASE`: `${{MySQL.MYSQLDATABASE}}`
+  - `MYSQLUSER`: `${{MySQL.MYSQLUSER}}`
+  - `MYSQLPASSWORD`: `${{MySQL.MYSQLPASSWORD}}`
+  - `JWT_SECRET`: `404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970`
+  - `CORS_ALLOWED_ORIGINS`: `https://*.vercel.app,http://localhost:3000`
+- **Backend Verification**:
+  - `GET https://backend-production-f4cb.up.railway.app/` $\rightarrow$ HTTP 200 `Backend is running 🚀`
+  - `GET https://backend-production-f4cb.up.railway.app/api/auth/health` $\rightarrow$ HTTP 200 `{"status":"UP","message":"Authentication service is running"}`
+  - Hibernate JPA EntityManager initialized; 19 JPA repositories active.
+  - Data seeding verified: 31 Mock Interview questions and 14 coding problems populated into MySQL.
+
+---
+
 ## 9. Immediate Next Step
 
 ### Task
-Deploy Spring Boot backend and MySQL database to Railway, deploy Next.js frontend to Vercel, and verify the live public application URLs.
+Complete Vercel account authorization for the Next.js 16 frontend, trigger production build on Vercel pointing to `https://backend-production-f4cb.up.railway.app`, and conduct end-to-end live testing.
 
 ### Reason
-All 15 development phases, security configurations, database schemas, and build pipelines have been committed and pushed to GitHub `origin/main` (`8887ea6`). The codebase is 100% prepared for production deployment with environment-based configuration for Railway and Vercel.
+The backend and MySQL database are already live, healthy, and publicly reachable. The Next.js frontend build is validated locally (0 errors) and requires Vercel authorization to complete public deployment.
 
 ### Expected Result
-1. Railway provisions MySQL and deploys Spring Boot backend with HTTPS URL.
-2. Vercel builds Next.js 16 frontend linked to Railway backend URL.
-3. Live end-to-end user registration, authentication, dashboard, and career guidance flows verified on public URLs.
+1. Vercel builds and deploys frontend with `NEXT_PUBLIC_API_BASE_URL=https://backend-production-f4cb.up.railway.app`.
+2. Public production frontend URL is operational and connected to Railway backend.
+3. User registration, login, dashboard, roadmaps, and career intelligence verified live.
+
 
