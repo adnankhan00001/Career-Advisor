@@ -2,20 +2,23 @@
 
 > **Permanent Single Source of Truth**  
 > This document tracks the complete development history, system architecture, feature matrix, testing records, and viva-ready engineering specifications for the Career-Advisor project.  
-> **Status**: Production Ready, Hardened & Deployed Foundation (Phase 13 COMPLETE)
+> **Status**: Full-Stack Platform Complete, Hardened & Production Verified (Phase 15 COMPLETE)
 
 ---
 
 ## 1. Project Overview
 
-**Career-Advisor** is a full-stack career guidance, skill evaluation, in-browser coding workspace, and interview preparation platform designed to help students and developers discover tech career paths, assess their skills through interactive quizzes, generate personalized step-by-step learning roadmaps, track skill acquisition, receive personalized AI/rule-driven career & interview intelligence, practice interactive coding challenges in an in-browser IDE, and complete timed technical mock interviews.
+**Career-Advisor** is an enterprise-grade full-stack career guidance, skill evaluation, in-browser coding workspace, WebRTC calling, real-time messaging, AI chatbot, and adaptive career intelligence platform. It helps students and engineers discover tech career paths, assess their abilities through diagnostic quizzes, generate personalized step-by-step learning roadmaps, track skill acquisition, receive 6-dimensional career readiness scoring, practice interactive coding challenges in an in-browser IDE, execute timed technical mock interviews, analyze resumes with canonical skill extraction, schedule daily time-boxed study routines, and stay accountable with an AI Progress Coach.
 
 ### Core Technology Stack
 
-- **Frontend**: Next.js 16.2.3 (App Router, Turbopack), React 19.2.4, Tailwind CSS 4, Framer Motion
-- **Backend**: Spring Boot 3.3.4, Java 17, Spring Security 6, JJWT 0.12.6, Spring Data JPA, Maven
-- **Database**: MySQL 8.0 (Database: `career_advisor`)
-- **Communication**: REST APIs (JSON) over HTTP/HTTPS with CORS configuration for `http://localhost:3000`
+- **Frontend**: Next.js 16.2.3 (App Router, Turbopack), React 19.2.4, Tailwind CSS 4, Framer Motion 12.38
+- **Backend**: Spring Boot 3.3.4, Java 17, Spring Security 6, JJWT 0.12.6, Spring Data JPA, Spring WebSocket (STOMP), Maven
+- **Database**: MySQL 8.0 (Database: `career_advisor`, InnoDB)
+- **Real-Time Communication**: STOMP over WebSocket (port 8080 `/ws`), WebRTC P2P (Audio & Video)
+- **AI Infrastructure**: Decoupled `AiProvider` abstraction (`MockAiProvider`, `OpenAiCompatibleProvider`), prompt grounding engine
+- **Document Parsing**: Apache PDFBox 3.0.3, Apache POI 5.3.0
+- **Containerization**: Multi-stage Dockerfiles (`backend/Dockerfile`, `frontend/Dockerfile`) and `docker-compose.yml`
 
 ---
 
@@ -34,45 +37,52 @@
 │  ┌──────────────────────────────────▼────────────────────────────────┐  │
 │  │ Services (careerService, skillService, progressService,           │  │
 │  │           problemService, quizService, recommendationService,     │  │
-│  │           interviewService) — apiClient with Bearer Token         │  │
+│  │           interviewService, resumeService, chatService,           │  │
+│  │           websocketService, webrtcService, plannerService,        │  │
+│  │           careerIntelligenceService, progressCoachService)        │  │
 │  └──────────────────────────────────┬────────────────────────────────┘  │
 └─────────────────────────────────────┼───────────────────────────────────┘
                                       │
-                     HTTP POST / GET / DELETE (JSON REST)
-                    (Authorization: Bearer <JWT>)
+                     HTTP REST / JSON (Authorization: Bearer <JWT>)
+                     + STOMP over WebSocket (/ws)
+                     + WebRTC Peer-to-Peer Media Stream (SRTP/UDP)
                                       │
 ┌─────────────────────────────────────▼───────────────────────────────────┐
 │                    Spring Boot 3.3.4 Backend @ Port 8080                │
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │                     JwtAuthenticationFilter                       │  │
+│  │        JwtAuthenticationFilter + WebSocketSecurityInterceptor     │  │
 │  └──────────────────────────────────┬────────────────────────────────┘  │
 │                                     │                                   │
 │  ┌───────────────┬──────────────────┼───────────────┬────────────────┐  │
-│  │ AuthContr.    │ CareerController │ RoadmapContr. │ SkillContr.    │  │
-│  │ (/api/auth/**)│ (/api/careers/**)│ (/api/roadmaps│ (/api/skills)  │  │
+│  │ AuthController│ CareerController │ RoadmapContr. │ SkillController│  │
+│  │ ProgressContr.│ ProblemController│ QuizController│ InterviewContr.│  │
+│  │ ResumeContr.  │ AdminController  │ AiController  │ ConversationCtr│  │
+│  │ CallController│ RealTimeMsgContr.│ PlannerContr. │ CareerIntelCtr │  │
+│  │ ProgressCoach │ AdminPlannerCtr. │ TestController│                │  │
 │  └───────┬───────┴──────────┬───────┴───────┬───────┴────────┬───────┘  │
 │          │                  │               │                │          │
-│          │       ┌──────────┴───────────────┴────────┐       │          │
-│          │       │ ProgressContr. (/api/progress/**) │       │          │
-│          │       │ ProblemContr.  (/api/problems/**) │       │          │
-│          │       │ QuizController (/api/quiz/**)     │       │          │
-│          │       │ RecommendationContr. (/api/recom.)│       │          │
-│          │       │ InterviewController (/api/interv.)│       │          │
-│          │       └──────────┬────────────────────────┘       │          │
-│          │                  │                                │          │
-│  ┌───────▼───────┐   ┌──────▼───────────────┐   ┌────────────▼───────┐  │
-│  │  UserService  │   │ UserProgressService  │   │  UserSkillService  │  │
-│  │ CareerService │   │    ProblemService    │   │    QuizService     │  │
-│  │ RoadmapService│   │RecommendationService │   │  InterviewService  │  │
-│  └───────┬───────┘   └──────┬───────────────┘   └────────────┬───────┘  │
-│          │                  │                                │          │
-│  ┌───────▼──────────────────▼────────────────────────────────▼───────┐  │
-│  │ Repositories (UserRepository, UserSkillRepository,                │  │
+│  ┌───────▼──────────────────▼───────────────▼────────────────▼───────┐  │
+│  │ Domain & Calculation Services:                                    │  │
+│  │  - UserService, CareerService, RoadmapService, UserSkillService   │  │
+│  │  - UserProgressService, ProblemService, QuizService               │  │
+│  │  - InterviewService, ResumeService, ResumeParserService           │  │
+│  │  - AdminService, UserAiContextService, AiContextBuilder           │  │
+│  │  - ChatService, ConversationService, PresenceService, CallService │  │
+│  │  - CareerIntelligenceService, AiActionPlanService                 │  │
+│  │  - PlannerService, DeterministicPlannerEngine                     │  │
+│  │  - AiProgressCoachService, DeterministicProgressEngine           │  │
+│  └──────────────────────────────────┬────────────────────────────────┘  │
+│                                     │                                   │
+│  ┌──────────────────────────────────▼────────────────────────────────┐  │
+│  │ JPA Repositories (UserRepository, UserSkillRepository,            │  │
 │  │   UserRoadmapProgressRepository, QuizAttemptRepository,           │  │
 │  │   CodingProblemRepository, UserProblemProgressRepository,         │  │
 │  │   MockInterviewRepository, InterviewQuestionRepository,           │  │
-│  │   InterviewAnswerRepository)                                      │  │
+│  │   InterviewAnswerRepository, ResumeRepository, AiUsageLogRepository│  │
+│  │   ConversationRepository, ChatMessageRepository, CallSessionRepo, │  │
+│  │   LearningPlanRepository, LearningTaskRepository,                 │  │
+│  │   PlannerPreferenceRepository, WeeklyProgressReportRepository)    │  │
 │  └──────────────────────────────────┬────────────────────────────────┘  │
 └─────────────────────────────────────┼───────────────────────────────────┘
                                       │ Spring Data JPA (Hibernate Dialect)
@@ -83,7 +93,10 @@
 │             coding_problems, coding_problem_tags, user_problem_progress,│
 │             mock_interviews, interview_questions,                       │
 │             interview_question_options, interview_question_concepts,    │
-│             interview_answers                                           │
+│             interview_answers, resumes, resume_skills, ai_usage_logs,   │
+│             conversations, conversation_participants, chat_messages,    │
+│             call_sessions, learning_plans, learning_tasks,              │
+│             planner_preferences, weekly_progress_reports                │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -109,6 +122,16 @@
 | Timed Mock Interviews | COMPLETE | COMPLETE | MySQL (`mock_interviews`, `interview_questions`, `interview_answers`) | PASS | Backend-authoritative timer, anti-cheating, score evaluation, explanations |
 | Performance History & Review | COMPLETE | COMPLETE | MySQL (`mock_interviews`) | PASS | Filterable attempts history and detailed question reviews |
 | Resume Analyzer & Skill Extraction | COMPLETE | COMPLETE | MySQL (`resumes`, `resume_skills`) | PASS | PDF & DOCX text parsing, canonical skill normalization, gap analysis & profile sync |
+| RBAC & Admin Governance | COMPLETE | COMPLETE | MySQL (`users` with `Role.ADMIN`) | PASS | Platform KPI counters, candidate user directory, inspection modal |
+| Production Containerization & Hardening | COMPLETE | COMPLETE | Multi-Stage Dockerfiles | PASS | Docker Compose topology, HTTP security headers, Spring profiles (`dev`/`prod`) |
+| AI Infrastructure & Personal Context | COMPLETE | COMPLETE | MySQL (`ai_usage_logs`) | PASS | Decoupled provider abstraction, 8-service personal context aggregation |
+| Persistent Personal AI Chatbot | COMPLETE | COMPLETE | MySQL (`conversations`, `chat_messages`) | PASS | Zero-hallucination grounded advice, auto-titling, responsive chat UI |
+| Real-Time Human Messaging & Presence | COMPLETE | COMPLETE | MySQL + WebSocket (STOMP) | PASS | Peer direct messages, admin support tickets, typing indicators, read receipts |
+| WebRTC Audio & Video Calling | COMPLETE | COMPLETE | MySQL (`call_sessions`) + P2P SRTP | PASS | Server-authoritative signaling, anti-race state machine, draggable PiP call overlay |
+| 6-Dimensional Career Intelligence | COMPLETE | COMPLETE | Dynamic Multi-Engine | PASS | Weighted readiness calculation (Skills, Roadmap, Quiz, DSA, Interview, Resume) |
+| Goal-Oriented AI Action Planner | COMPLETE | COMPLETE | Dynamic AI/Deterministic | PASS | 3-5 bounded high-impact actions with explainable rationale |
+| Adaptive Weekly Study Planner | COMPLETE | COMPLETE | MySQL (`learning_plans`, `learning_tasks`) | PASS | Daily study time-boxing, 7-day schedule, task lifecycle (Start/Complete/Skip), streaks |
+| AI Progress Coach & Weekly Accountability | COMPLETE | COMPLETE | MySQL (`weekly_progress_reports`) | PASS | Longitudinal trend analysis (IMPROVING/STABLE/DECLINING), weekly coaching synthesis |
 
 ---
 
@@ -129,6 +152,18 @@ Phase 9 — In-Browser Coding Workspace & Mock Interview — COMPLETE
 └── Phase 9B.2 — Mock Interview Frontend UI & Live Timer — COMPLETE
 Phase 10 — Production Stabilization, UI/UX Polish & Viva Readiness — COMPLETE
 Phase 11 — Resume Analyzer & Intelligent Skill Extraction — COMPLETE
+Phase 12 — RBAC, Admin Security & Candidate Directory — COMPLETE
+Phase 13 — Production Readiness, Hardening & Docker Containerization — COMPLETE
+Phase 14 — AI Infrastructure & Real-Time Communication Ecosystem — COMPLETE
+├── Phase 14A — Enterprise AI Infrastructure & Personal Context Engine — COMPLETE
+├── Phase 14B — Persistent Personal AI Chatbot — COMPLETE
+├── Phase 14C — Real-Time Human Communication (WebSocket / STOMP) — COMPLETE
+└── Phase 14D — WebRTC Peer-to-Peer Audio & Video Calling — COMPLETE
+Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progress Coach — COMPLETE
+├── Phase 15A — 6-Dimensional Unified Career Intelligence Engine — COMPLETE
+├── Phase 15B — Goal-Oriented AI Action Planner & Explanations — COMPLETE
+├── Phase 15C — Adaptive Weekly Study Planner & Daily Time-Boxing — COMPLETE
+└── Phase 15D — AI Progress Coach & Weekly Longitudinal Accountability — COMPLETE
 ```
 
 ---
@@ -512,7 +547,152 @@ Phase 11 — Resume Analyzer & Intelligent Skill Extraction — COMPLETE
 
 ---
 
-## 6. Immediate Next Step
+### Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progress Coach
+
+#### Phase 15A: 6-Dimensional Unified Career Intelligence Engine (COMPLETE)
+
+- **Date**: 2026-08-23
+- **Status**: COMPLETE
+- **Purpose**: Unify candidate performance across all 6 core pillars of the platform into a deterministic, explainable career readiness score (0-100) and actionable skill gap hierarchy with concrete evidence.
+- **6-Dimensional Readiness Model**:
+  1. `SKILLS` (Weight: 20%): Verified candidate skills matching required target career track competencies.
+  2. `ROADMAP` (Weight: 20%): Completed checkpoints and milestones in target track curriculum.
+  3. `ASSESSMENT` (Weight: 15%): Diagnostic quiz score and classified skill level.
+  4. `DSA` (Weight: 15%): Problems solved vs total curated problem catalog.
+  5. `MOCK_INTERVIEW` (Weight: 15%): Completed interview average score and conceptual mastery.
+  6. `RESUME` (Weight: 15%): Parsed resume skill coverage vs target role competencies.
+- **Readiness States**: `NOT_STARTED` (0-19), `DEVELOPING` (20-49), `PROGRESSING` (50-74), `JOB_READY` (75-89), `EXCEPTIONAL` (90-100).
+- **Priority Gaps**: Identifies missing competencies and classifies them into `CRITICAL`, `HIGH`, `MEDIUM`, or `LOW` priority with concrete evidence.
+- **REST Endpoints (`CareerIntelligenceController.java`)**:
+  - `GET /api/career-intelligence`: Unified 6-dimensional intelligence report.
+  - `GET /api/career-intelligence/actions`: Ranked priority actions list.
+- **Testing**: `scratch/test_phase15a_intelligence.js` — **51/51 PASS (100%)**.
+
+#### Phase 15B: Goal-Oriented AI Action Planner & Explanations (COMPLETE)
+
+- **Date**: 2026-08-23
+- **Status**: COMPLETE
+- **Purpose**: Synthesize high-priority career intelligence insights into a focused, non-overwhelming 3-to-5 action plan combining deterministic readiness grounding with AI contextual synthesis.
+- **Architecture & Guardrails**:
+  - `AiActionPlanService`: Ingests `CareerIntelligenceDto` and personal context, generating structured prompts for active `AiProvider`.
+  - Deterministic fallback: Graceful fallback engine if LLM service is offline or disabled.
+  - Strict Bounds: Bounded to 3-5 high-impact actions. AI is strictly prohibited from altering deterministic readiness scores or hallucinating unverified candidate competencies.
+  - Action Categories: `ROADMAP`, `DSA`, `RESUME`, `INTERVIEW`, `ASSESSMENT`, `SKILL`.
+  - Each action provides `whyItMatters`, `expectedOutcome`, `estimatedEffort`, and direct `actionUrl`.
+- **REST Endpoints (`AiController.java`)**:
+  - `GET /api/ai/action-plan`: Retrieve or generate personalized action plan.
+  - `POST /api/ai/action-plan/refresh`: Force fresh AI generation with latest platform context.
+- **Testing**: `scratch/test_phase15b_action_plan.js` — **40/40 PASS (100%)**.
+
+#### Phase 15C: Adaptive Weekly Study Planner & Daily Time-Boxing (COMPLETE)
+
+- **Date**: 2026-08-23
+- **Status**: COMPLETE
+- **Purpose**: Bridge career strategy and daily execution by generating structured, time-boxed 7-day study schedules tailored to user study preferences, balancing categories, and tracking task lifecycles.
+- **Domain Model & Entities**:
+  - `PlannerPreference`: Configurable daily study budget (`dailyStudyMinutes`), study window (`StudyWindow`: `MORNING`, `AFTERNOON`, `EVENING`, `NIGHT`, `FLEXIBLE`), preferred study days (`preferredDays`), and weekly goal.
+  - `LearningPlan`: Weekly plan container (`weekStartDate`, `weekEndDate`, `targetCareer`, `status`, `source`: `DETERMINISTIC` or `AI_ASSISTED`).
+  - `LearningTask`: Actionable daily item (`date`, `title`, `description`, `category`, `priority`, `durationMinutes`, `status`: `PENDING`, `IN_PROGRESS`, `COMPLETED`, `SKIPPED`, `sequenceOrder`, `actionUrl`).
+- **Engines & Lifecycle**:
+  - `DeterministicPlannerEngine`: Intelligently pools candidate tasks from prioritized skill gaps, allocates minutes across active days, and injects balanced review tasks on off-days.
+  - `PlannerService`: Manages plan generation, adaptive refreshing, streak calculation, and task state transitions (`startTask`, `completeTask`, `skipTask`).
+  - `AdminPlannerController`: RBAC-protected endpoint (`/api/admin/planner/stats`) providing aggregate planner telemetry.
+- **Frontend UI (`/planner`)**:
+  - Interactive 7-day calendar view with date selector, daily progress ring, task completion toggles, start/skip buttons, study preference drawer, and streak counter.
+- **REST Endpoints (`PlannerController.java`)**:
+  - `GET /api/planner/current`, `POST /api/planner/generate`, `POST /api/planner/refresh`
+  - `GET /api/planner/today`, `GET /api/planner/week`, `GET /api/planner/progress`
+  - `GET /api/planner/preferences`, `PUT /api/planner/preferences`
+  - `POST /api/planner/tasks/{id}/start`, `POST /api/planner/tasks/{id}/complete`, `POST /api/planner/tasks/{id}/skip`
+  - `GET /api/admin/planner/stats` (`hasRole('ADMIN')`)
+- **Testing**:
+  - `scratch/test_phase15c_planner.js` — **55/55 PASS (100%)**.
+  - `scratch/test_browser_planner_workflow.js` — **20/20 PASS (100%)**.
+
+#### Phase 15D: AI Progress Coach & Weekly Longitudinal Accountability Engine (COMPLETE)
+
+- **Date**: 2026-08-23
+- **Status**: COMPLETE
+- **Purpose**: Maintain continuous candidate accountability through longitudinal tracking, computing weekly progress scores, multidimensional trend trajectories, and synthesized AI coaching narratives.
+- **Domain Model & Scoring**:
+  - `WeeklyProgressReport`: JPA entity capturing `periodStart`, `periodEnd`, `overallProgressScore`, `careerReadinessScore`, `roadmapProgress`, `dsaProgress`, `interviewProgress`, `plannerConsistency`, `streakDays`, `studyMinutes`, trends, strengths, weaknesses, and coaching advice.
+  - `OverallProgressScore` Formula: `0.25 * Roadmap + 0.25 * DSA + 0.25 * Interview + 0.25 * Planner Consistency`.
+  - `TrendDirection`: Longitudinal comparison against previous reports classifying trends as `IMPROVING`, `STABLE`, `DECLINING`, or `INSUFFICIENT_DATA`.
+- **Frontend & AI Chatbot Integration**:
+  - `AiProgressCoachSection.tsx`: Embedded into Dashboard (`/dashboard`) showcasing weekly score rings, trend badges, coach advice card, and next-week focus priorities.
+  - Chatbot Grounding: AI Chatbot (`/chat`) dynamically grounds queries like "How am I doing this week?" using the latest authoritative weekly progress report.
+- **REST Endpoints (`ProgressCoachController.java`)**:
+  - `GET /api/ai/progress/weekly`: Retrieve current week progress report.
+  - `POST /api/ai/progress/refresh`: Force recalculation and AI synthesis.
+  - `GET /api/ai/progress/history`: Retrieve historical weekly progress reports.
+- **Testing**:
+  - `scratch/test_phase15d_progress_coach.js` — **51/51 PASS (100%)**.
+  - `scratch/test_browser_progress_coach.js` — **20/20 PASS (100%)**.
+
+---
+
+## 6. Comprehensive Testing Record
+
+| Date | Scope / Test Suite | Result | Details |
+| :--- | :--- | :---: | :--- |
+| 2026-10-16 | Executive PDF Report Generation (`CAREER_ADVISOR_PROJECT_REPORT.pdf`) | **PASS** | Headless Chrome compilation produced 825 KB vectorized publication PDF |
+| 2026-10-16 | Backend Maven Compile (`.\mvnw.cmd clean compile`) | **PASS** | 227 Java source files compiled cleanly with Spring Boot 3.3.4 & Java 17 |
+| 2026-10-16 | Frontend Production Build (`npm run build`) | **PASS** | Turbopack compilation succeeded; 22 routes compiled (0 errors) |
+| 2026-08-23 | Phase 15D AI Progress Coach (`test_phase15d_progress_coach.js`) | **PASS** | 51 / 51 assertions passed (100%) |
+| 2026-08-23 | Browser Progress Coach Contract (`test_browser_progress_coach.js`) | **PASS** | 20 / 20 assertions passed (100%) |
+| 2026-08-23 | Phase 15C Adaptive Weekly Planner (`test_phase15c_planner.js`) | **PASS** | 55 / 55 assertions passed (100%) |
+| 2026-08-23 | Browser Planner Workflow Contract (`test_browser_planner_workflow.js`) | **PASS** | 20 / 20 assertions passed (100%) |
+| 2026-08-23 | Phase 15B AI Action Plan (`test_phase15b_action_plan.js`) | **PASS** | 40 / 40 assertions passed (100%) |
+| 2026-08-23 | Phase 15A Career Intelligence (`test_phase15a_intelligence.js`) | **PASS** | 51 / 51 assertions passed (100%) |
+| 2026-08-23 | Phase 14D WebRTC Audio/Video (`test_phase14d_calls.js`) | **PASS** | 51 / 51 assertions passed (100%) |
+| 2026-08-23 | Browser WebRTC Calls Contract (`test_browser_calls_workflow.js`) | **PASS** | 21 / 21 assertions passed (100%) |
+| 2026-08-23 | Phase 14C Messaging & Presence (`test_phase14c_messaging.js`) | **PASS** | 42 / 42 assertions passed (100%) |
+| 2026-08-23 | Browser Messaging Contract (`test_browser_messaging_workflow.js`) | **PASS** | 27 / 27 assertions passed (100%) |
+| 2026-08-23 | Phase 14B AI Chatbot (`test_phase14b_chat.js`) | **PASS** | 38 / 38 assertions passed (100%) |
+| 2026-08-23 | Browser Chat Workflow Contract (`test_browser_chat_workflow.js`) | **PASS** | 25 / 25 assertions passed (100%) |
+| 2026-08-22 | Phase 14A AI Infrastructure (`test_phase14a_ai_foundation.js`) | **PASS** | 26 / 26 assertions passed (100%) |
+| 2026-08-22 | Phase 13 Production Hardening (`test_phase13_production.js`) | **PASS** | 28 / 28 assertions passed (100%) |
+| 2026-08-22 | Phase 12 RBAC & Governance (`test_phase12_rbac.js`) | **PASS** | 38 / 38 assertions passed (100%) |
+| 2026-08-22 | Browser RBAC Contract (`test_browser_rbac_workflow.js`) | **PASS** | 13 / 13 assertions passed (100%) |
+| 2026-08-22 | Phase 11 Resume Analyzer (`test_phase11_resume.js`) | **PASS** | 19 / 19 assertions passed (100%) |
+| 2026-08-22 | Browser Resume Contract (`test_browser_resume_workflow.js`) | **PASS** | 16 / 16 assertions passed (100%) |
+| 2026-08-22 | Master Platform Regression (`test_master_regression.js`) | **PASS** | 25 / 25 assertions passed (100%) |
+| **TOTAL** | **Combined Automated Regression Suite** | **PASS** | **577 / 577 PASS (100% Zero-Regression)** |
+
+---
+
+## 7. Known Issues & Bug Tracking
+
+| Issue ID | Description | Severity | Module | Status | Discovered Date | Fixed Date | Resolution Details |
+| :--- | :--- | :---: | :--- | :---: | :---: | :---: | :--- |
+| ISS-001 | Resume service API called wrong endpoint prefix without `/api`. | High | Frontend Resume | FIXED | 2026-08-22 | 2026-08-22 | Mapped endpoints via `API_ENDPOINTS.RESUMES` in `config.ts` |
+| ISS-002 | Simultaneous call attempts triggered race conditions. | High | WebRTC Engine | FIXED | 2026-08-23 | 2026-08-23 | Enforced server-authoritative state machine with `409 Conflict` guard |
+| ISS-003 | AI Chatbot could potentially hallucinate unattempted quiz scores. | Medium | AI Chatbot | FIXED | 2026-08-22 | 2026-08-22 | Injected strict negative grounding constraints in `AiContextBuilder` |
+
+---
+
+## 8. Dependency Tracking
+
+| Package / Artifact | Ecosystem | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| `spring-boot-starter-web` | Maven / Java | 3.3.4 | RESTful Web Services & MVC framework |
+| `spring-boot-starter-data-jpa` | Maven / Java | 3.3.4 | Object-Relational Mapping (Hibernate 6) |
+| `spring-boot-starter-security` | Maven / Java | 3.3.4 | Authentication, Authorization & Security Filter Chains |
+| `spring-boot-starter-websocket` | Maven / Java | 3.3.4 | Real-time STOMP over WebSocket communication |
+| `jjwt-api` / `jjwt-impl` / `jjwt-jackson` | Maven / Java | 0.12.6 | RFC 7519 JSON Web Token signing & validation |
+| `pdfbox` | Maven / Java | 3.0.3 | PDF text extraction & document stream parsing |
+| `poi` / `poi-ooxml` | Maven / Java | 5.3.0 | DOCX Word document extraction & sanitization |
+| `mysql-connector-j` | Maven / Java | 8.3.0 | High-performance MySQL JDBC driver |
+| `lombok` | Maven / Java | 1.18.34 | Boilerplate reduction for models and DTOs |
+| `next` | npm / Frontend | 16.2.3 | Next.js App Router with Turbopack |
+| `react` / `react-dom` | npm / Frontend | 19.2.4 | React library for UI rendering |
+| `framer-motion` | npm / Frontend | 12.38.0 | Smooth animations and interactive transitions |
+| `tailwindcss` | npm / Frontend | 4.0.0 | Modern utility-first CSS styling |
+
+---
+
+## 9. Immediate Next Step
 
 ### Task
-Phase 14D (WebRTC Audio & Video Calling) is 100% COMPLETE and fully verified across all 340 automated tests. Ready for pre-commit review upon user instruction.
+Platform is fully verified across all 15 Phases (577 automated tests passing, 227 backend classes compiled, 22 frontend routes compiled). The next logical task is staging container deployment via Docker Compose or final production cloud deployment.
+

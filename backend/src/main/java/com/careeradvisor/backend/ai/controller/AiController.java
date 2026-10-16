@@ -5,6 +5,8 @@ import com.careeradvisor.backend.ai.dto.AiChatRequest;
 import com.careeradvisor.backend.ai.dto.AiChatResponse;
 import com.careeradvisor.backend.ai.dto.AiHealthDto;
 import com.careeradvisor.backend.ai.dto.PersonalAiContextDto;
+import com.careeradvisor.backend.ai.dto.AiActionPlanDto;
+import com.careeradvisor.backend.ai.service.AiActionPlanService;
 import com.careeradvisor.backend.ai.service.AiService;
 import com.careeradvisor.backend.model.User;
 import com.careeradvisor.backend.repository.UserRepository;
@@ -20,13 +22,16 @@ public class AiController {
     private final AiService aiService;
     private final UserAiContextService userContextService;
     private final UserRepository userRepository;
+    private final AiActionPlanService actionPlanService;
 
     public AiController(AiService aiService,
                         UserAiContextService userContextService,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        AiActionPlanService actionPlanService) {
         this.aiService = aiService;
         this.userContextService = userContextService;
         this.userRepository = userRepository;
+        this.actionPlanService = actionPlanService;
     }
 
     /**
@@ -73,5 +78,37 @@ public class AiController {
         }
 
         return ResponseEntity.ok(aiService.chat(user, request));
+    }
+
+    /**
+     * Retrieves the personalized AI Career Action Plan for the authenticated user.
+     */
+    @GetMapping("/action-plan")
+    public ResponseEntity<AiActionPlanDto> getActionPlan(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null || userDetails.getId() == null) {
+            return ResponseEntity.status(401).build();
+        }
+        User user = userRepository.findById(userDetails.getId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(actionPlanService.getActionPlan(user, false));
+    }
+
+    /**
+     * Forces generation of a fresh AI Career Action Plan.
+     */
+    @PostMapping("/action-plan/refresh")
+    public ResponseEntity<AiActionPlanDto> refreshActionPlan(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null || userDetails.getId() == null) {
+            return ResponseEntity.status(401).build();
+        }
+        User user = userRepository.findById(userDetails.getId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(actionPlanService.getActionPlan(user, true));
     }
 }

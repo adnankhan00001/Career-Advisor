@@ -6,6 +6,7 @@ import com.careeradvisor.backend.model.*;
 import com.careeradvisor.backend.repository.MockInterviewRepository;
 import com.careeradvisor.backend.repository.ResumeRepository;
 import com.careeradvisor.backend.service.*;
+import com.careeradvisor.backend.service.PlannerService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -22,6 +23,9 @@ public class UserAiContextService {
     private final MockInterviewRepository interviewRepository;
     private final ResumeRepository resumeRepository;
     private final RecommendationService recommendationService;
+    private final CareerIntelligenceService careerIntelligenceService;
+    private final PlannerService plannerService;
+    private final DeterministicProgressEngine deterministicProgressEngine;
 
     public UserAiContextService(UserSkillService userSkillService,
                                 QuizService quizService,
@@ -29,7 +33,10 @@ public class UserAiContextService {
                                 ProblemService problemService,
                                 MockInterviewRepository interviewRepository,
                                 ResumeRepository resumeRepository,
-                                RecommendationService recommendationService) {
+                                RecommendationService recommendationService,
+                                CareerIntelligenceService careerIntelligenceService,
+                                PlannerService plannerService,
+                                DeterministicProgressEngine deterministicProgressEngine) {
         this.userSkillService = userSkillService;
         this.quizService = quizService;
         this.userProgressService = userProgressService;
@@ -37,6 +44,9 @@ public class UserAiContextService {
         this.interviewRepository = interviewRepository;
         this.resumeRepository = resumeRepository;
         this.recommendationService = recommendationService;
+        this.careerIntelligenceService = careerIntelligenceService;
+        this.plannerService = plannerService;
+        this.deterministicProgressEngine = deterministicProgressEngine;
     }
 
     /**
@@ -45,7 +55,7 @@ public class UserAiContextService {
      */
     public PersonalAiContextDto buildUserContext(User user) {
         if (user == null) {
-            return PersonalAiContextDto.builder().build();
+            return null;
         }
 
         // 1. User Profile Summary
@@ -192,6 +202,71 @@ public class UserAiContextService {
                     .build();
         }
 
+        // 9. Unified Career Intelligence Engine Snapshot
+        CareerIntelligenceAiSummaryDto careerIntelligence = null;
+        try {
+            CareerIntelligenceDto intel = careerIntelligenceService.calculateCareerIntelligence(user);
+            if (intel != null) {
+                List<String> topGaps = intel.getSkillGaps() != null
+                        ? intel.getSkillGaps().stream().limit(5).map(CareerGapDto::getSkill).collect(Collectors.toList())
+                        : new ArrayList<>();
+
+                List<String> actionTitles = intel.getPrioritizedActions() != null
+                        ? intel.getPrioritizedActions().stream().limit(4).map(CareerActionDto::getTitle).collect(Collectors.toList())
+                        : new ArrayList<>();
+
+                careerIntelligence = CareerIntelligenceAiSummaryDto.builder()
+                        .overallReadinessScore(intel.getOverallReadinessScore())
+                        .readinessState(intel.getReadinessStateDisplayName())
+                        .targetCareer(intel.getTargetCareer())
+                        .strongestDimensions(intel.getStrongestDimensions() != null ? intel.getStrongestDimensions() : new ArrayList<>())
+                        .weakestDimensions(intel.getWeakestDimensions() != null ? intel.getWeakestDimensions() : new ArrayList<>())
+                        .topSkillGaps(topGaps)
+                        .prioritizedActionTitles(actionTitles)
+                        .build();
+            }
+        } catch (Exception e) {
+            // Safe fallback
+        }
+
+        // 10. Planner Summary (Phase 15C)
+        PlannerAiSummaryDto plannerSummary = null;
+        try {
+            var progress = plannerService.getProgress(user);
+            var todayTasks = plannerService.getTodayTasks(user);
+            var pref = plannerService.getOrCreatePreferences(user);
+            plannerSummary = PlannerAiSummaryDto.builder()
+                    .weeklyGoal(pref.getWeeklyGoal())
+                    .completionPercentage(progress.getCompletionPercentage())
+                    .totalTasks(progress.getTotalTasks())
+                    .completedTasks(progress.getCompletedTasks())
+                    .dailyStudyMinutes(pref.getDailyStudyMinutes())
+                    .currentStreak(progress.getCurrentStreak())
+                    .todayScheduledTasks(todayTasks != null ? todayTasks.stream().map(t -> t.getTitle() + " (" + t.getEstimatedMinutes() + "m, " + t.getPriority() + ")").collect(Collectors.toList()) : new ArrayList<>())
+                    .build();
+        } catch (Exception ignored) {}
+
+        // 11. Progress Intelligence Coach Summary (Phase 15D)
+        ProgressAiSummaryDto progressReport = null;
+        try {
+            WeeklyProgressReportDto rep = deterministicProgressEngine.generateDeterministicReport(user);
+            if (rep != null) {
+                progressReport = ProgressAiSummaryDto.builder()
+                        .overallProgressScore(rep.getOverallProgressScore())
+                        .careerReadinessScore(rep.getCareerReadinessScore())
+                        .roadmapProgress(rep.getRoadmapProgress())
+                        .dsaSolvedCount(rep.getDsaSolvedCount())
+                        .interviewAvgScore(rep.getInterviewProgress())
+                        .plannerConsistency(rep.getPlannerConsistency())
+                        .currentStreak(rep.getStreakDays())
+                        .overallTrend(rep.getOverallTrend())
+                        .topAchievements(rep.getTopAchievements() != null ? rep.getTopAchievements() : new ArrayList<>())
+                        .priorityAreas(rep.getPriorityAreas() != null ? rep.getPriorityAreas() : new ArrayList<>())
+                        .coachSummary(rep.getCoachSummary())
+                        .build();
+            }
+        } catch (Exception ignored) {}
+
         return PersonalAiContextDto.builder()
                 .userProfile(profile)
                 .targetCareerGoal(profile.getCareerGoal())
@@ -202,6 +277,9 @@ public class UserAiContextService {
                 .dsaProgress(dsaProgress)
                 .mockInterviewPerformance(interviewSummary)
                 .recommendations(recommendationSummary)
+                .careerIntelligence(careerIntelligence)
+                .plannerSummary(plannerSummary)
+                .progressReport(progressReport)
                 .contextTimestamp(Instant.now())
                 .build();
     }

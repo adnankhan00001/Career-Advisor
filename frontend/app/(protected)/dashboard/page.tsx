@@ -12,6 +12,11 @@ import { recommendationService, PersonalizedIntelligence } from "@/lib/recommend
 import { interviewService, InterviewSummary } from "@/lib/interviewService";
 import { getLatestResumeAnalysis, ResumeAnalysis } from "@/lib/resumeService";
 import PersonalizedPlan from "@/components/PersonalizedPlan";
+import CareerIntelligenceSection from "@/components/CareerIntelligenceSection";
+import AiProgressCoachSection from "@/components/AiProgressCoachSection";
+import { careerIntelligenceService, CareerIntelligence } from "@/lib/careerIntelligenceService";
+import { getAiActionPlan, AiActionPlan } from "@/lib/aiService";
+import { plannerService, PlannerProgress, LearningTask } from "@/lib/plannerService";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -20,6 +25,10 @@ export default function Dashboard() {
   const [practiceSummary, setPracticeSummary] = useState<ProblemProgressSummary | null>(null);
   const [interviewSummary, setInterviewSummary] = useState<InterviewSummary | null>(null);
   const [intelligence, setIntelligence] = useState<PersonalizedIntelligence | null>(null);
+  const [careerIntelligence, setCareerIntelligence] = useState<CareerIntelligence | null>(null);
+  const [aiActionPlan, setAiActionPlan] = useState<AiActionPlan | null>(null);
+  const [plannerProgress, setPlannerProgress] = useState<PlannerProgress | null>(null);
+  const [todayTasks, setTodayTasks] = useState<LearningTask[]>([]);
   const [resumeAnalysis, setResumeAnalysis] = useState<ResumeAnalysis | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -32,13 +41,34 @@ export default function Dashboard() {
     async function loadDashboardData() {
       setLoading(true);
       try {
-        const [liveSummary, livePractice, liveIntelligence, liveInterview, liveResume] = await Promise.all([
+        const [liveSummary, livePractice, liveIntelligence, liveInterview, liveResume, liveCareerIntel, liveActionPlan, livePlannerProg, liveTodayTasks] = await Promise.all([
           progressService.getProgressSummary(),
           problemService.getProgressSummary(),
           recommendationService.getRecommendations(),
           interviewService.getInterviewSummary().catch(() => null),
           getLatestResumeAnalysis().catch(() => null),
+          careerIntelligenceService.getCareerIntelligence().catch(() => null),
+          getAiActionPlan().catch(() => null),
+          plannerService.getProgress().catch(() => null),
+          plannerService.getTodayTasks().catch(() => []),
         ]);
+
+        if (liveCareerIntel) {
+          setCareerIntelligence(liveCareerIntel);
+        }
+
+        if (liveActionPlan) {
+          setAiActionPlan(liveActionPlan);
+        }
+
+        if (livePlannerProg) {
+          setPlannerProgress(livePlannerProg);
+        }
+
+        if (liveTodayTasks) {
+          setTodayTasks(liveTodayTasks);
+        }
+          
 
         if (liveIntelligence) {
           setIntelligence(liveIntelligence);
@@ -169,6 +199,40 @@ export default function Dashboard() {
       </div>
 
       {/* Personalized Intelligence Plan Section */}
+      <CareerIntelligenceSection intelligence={careerIntelligence} initialActionPlan={aiActionPlan} loading={loading} />
+
+      {/* AI Progress Coach & Weekly Career Intelligence Section (Phase 15D) */}
+      <AiProgressCoachSection />
+
+      {/* Today's Adaptive Career Plan Widget (Phase 15C) */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wider text-indigo-600 font-bold">
+              🗓️ Today's Career Plan
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Streak: 🔥 {plannerProgress?.currentStreak || 0} days
+            </span>
+          </div>
+          <h3 className="text-base font-extrabold text-gray-900">
+            {todayTasks.filter(t => t.status === "COMPLETED").length} of {todayTasks.length} Daily Milestones Completed
+          </h3>
+          <p className="text-xs text-gray-500">
+            {plannerProgress?.weeklyMinutesCompleted || 0} / {plannerProgress?.weeklyMinutesPlanned || 0} minutes executed this week ({plannerProgress?.completionPercentage || 0}% overall adherence)
+          </p>
+        </div>
+
+        <Link
+          href="/planner"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5"
+        >
+          View Full Weekly Planner →
+        </Link>
+      </div>
+
+
+      {/* Existing Personalized Plan */}
       <PersonalizedPlan intelligence={intelligence} loading={loading} />
 
       {/* Metrics Row */}

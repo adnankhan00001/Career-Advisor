@@ -33,6 +33,25 @@ public class AiContextBuilder {
         sb.append(String.format("Target Career Goal: %s\n", context.getTargetCareerGoal()));
         sb.append(String.format("Self-Reported Experience Level: %s\n", context.getUserProfile().getUserLevel()));
 
+        // Unified Career Intelligence (Phase 15A)
+        if (context.getCareerIntelligence() != null) {
+            sb.append(String.format("Unified Career Readiness: %d%% (%s)\n",
+                    context.getCareerIntelligence().getOverallReadinessScore(),
+                    context.getCareerIntelligence().getReadinessState()));
+            if (!context.getCareerIntelligence().getStrongestDimensions().isEmpty()) {
+                sb.append(String.format("Top Strengths: %s\n", String.join(", ", context.getCareerIntelligence().getStrongestDimensions())));
+            }
+            if (!context.getCareerIntelligence().getWeakestDimensions().isEmpty()) {
+                sb.append(String.format("Top Growth Areas: %s\n", String.join(", ", context.getCareerIntelligence().getWeakestDimensions())));
+            }
+            if (!context.getCareerIntelligence().getTopSkillGaps().isEmpty()) {
+                sb.append(String.format("Critical Skill Gaps: %s\n", String.join(", ", context.getCareerIntelligence().getTopSkillGaps())));
+            }
+            if (!context.getCareerIntelligence().getPrioritizedActionTitles().isEmpty()) {
+                sb.append(String.format("Recommended Next Actions: %s\n", String.join("; ", context.getCareerIntelligence().getPrioritizedActionTitles())));
+            }
+        }
+
         // Verified Skills
         if (context.getVerifiedSkills() != null && !context.getVerifiedSkills().isEmpty()) {
             sb.append(String.format("Verified Portfolio Skills (%d): %s\n",
@@ -94,15 +113,34 @@ public class AiContextBuilder {
                     String.join(", ", context.getMockInterviewPerformance().getWeakAreas())));
         }
 
-        // Recommendation Engine
-        if (context.getRecommendations() != null) {
-            sb.append(String.format("Platform Readiness Score: %d%% (Status: %s). Key Missing Skills: %s\n",
-                    context.getRecommendations().getOverallReadinessScore(),
-                    context.getRecommendations().getUserLifecycleState(),
-                    String.join(", ", context.getRecommendations().getMissingSkills())));
+        // Weekly Planner (Phase 15C)
+        if (context.getPlannerSummary() != null) {
+            sb.append(String.format("Weekly Planner: %d/%d tasks completed (%d%%), Streak: %d days, Budget: %d mins/day\n",
+                    context.getPlannerSummary().getCompletedTasks(),
+                    context.getPlannerSummary().getTotalTasks(),
+                    context.getPlannerSummary().getCompletionPercentage(),
+                    context.getPlannerSummary().getCurrentStreak(),
+                    context.getPlannerSummary().getDailyStudyMinutes()));
         }
 
-        sb.append("========================================\n");
+        // Weekly Progress Intelligence & Coach (Phase 15D)
+        if (context.getProgressReport() != null) {
+            sb.append(String.format("Weekly Progress Score: %d%% (Trend: %s), Readiness: %d%%\n",
+                    context.getProgressReport().getOverallProgressScore(),
+                    context.getProgressReport().getOverallTrend(),
+                    context.getProgressReport().getCareerReadinessScore()));
+            if (context.getProgressReport().getTopAchievements() != null && !context.getProgressReport().getTopAchievements().isEmpty()) {
+                sb.append(String.format("Weekly Wins: %s\n", String.join(" | ", context.getProgressReport().getTopAchievements())));
+            }
+            if (context.getProgressReport().getPriorityAreas() != null && !context.getProgressReport().getPriorityAreas().isEmpty()) {
+                sb.append(String.format("Needs Attention: %s\n", String.join(" | ", context.getProgressReport().getPriorityAreas())));
+            }
+            if (context.getProgressReport().getCoachSummary() != null) {
+                sb.append(String.format("Coach's Assessment: %s\n", context.getProgressReport().getCoachSummary()));
+            }
+        }
+
+        sb.append("=========================================\n");
         return sb.toString();
     }
 }

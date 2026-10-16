@@ -70,7 +70,7 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(java.util.stream.Collectors.toList());
-        configuration.setAllowedOrigins(origins);
+        configuration.setAllowedOriginPatterns(origins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
         configuration.setExposedHeaders(List.of("Authorization"));
@@ -105,7 +105,7 @@ public class SecurityConfig {
                         .requestMatchers("/quiz/**", "/api/quiz/submit").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/skills/**", "/api/progress/**", "/api/quiz/latest", "/api/recommendations/**", "/api/interviews/**", "/api/resumes/**", "/api/ai/**", "/api/conversations/**", "/api/users/**", "/api/calls/**").authenticated()
+                        .requestMatchers("/api/skills/**", "/api/progress/**", "/api/quiz/latest", "/api/recommendations/**", "/api/interviews/**", "/api/resumes/**", "/api/ai/**", "/api/conversations/**", "/api/users/**", "/api/calls/**", "/api/career-intelligence/**", "/api/planner/**").authenticated()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 );

@@ -668,3 +668,306 @@
 - **Endpoint**: `GET /api/calls/history`
 - **Access**: Authenticated
 - **Response** (`200 OK`): Chronological list of past call sessions involving the user, with durations, status, and termination reasons.
+
+
+---
+
+## 16. Unified Career Intelligence Endpoints
+
+### 16.1 Get Career Intelligence Snapshot
+- **Endpoint**: `GET /api/career-intelligence`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK`
+```json
+{
+  "userId": 42,
+  "userName": "Alice Engineer",
+  "targetCareer": "Java Backend Developer",
+  "userLevel": "Intermediate",
+  "overallReadinessScore": 68,
+  "readinessState": "ADVANCED",
+  "readinessStateDisplayName": "Advanced",
+  "summary": "You are currently at the Advanced level (68% readiness) for Java Backend Developer...",
+  "dimensionScores": {
+    "SKILLS": {
+      "dimension": "SKILLS",
+      "displayName": "Verified Portfolio Skills",
+      "score": 75,
+      "weightPercentage": 20,
+      "weightedContribution": 15.0,
+      "attempted": true,
+      "statusDescription": "Strong portfolio coverage",
+      "detailMetric": "3 verified (3 matched target)"
+    },
+    "ROADMAP": {
+      "dimension": "ROADMAP",
+      "displayName": "Career Roadmap Progress",
+      "score": 60,
+      "weightPercentage": 20,
+      "weightedContribution": 12.0,
+      "attempted": true,
+      "statusDescription": "In progress",
+      "detailMetric": "3/5 milestones (60%)"
+    },
+    "ASSESSMENT": {
+      "dimension": "ASSESSMENT",
+      "displayName": "Diagnostic Assessment",
+      "score": 80,
+      "weightPercentage": 15,
+      "weightedContribution": 12.0,
+      "attempted": true,
+      "statusDescription": "Level: Intermediate",
+      "detailMetric": "8/10 correct (80%)"
+    },
+    "DSA": {
+      "dimension": "DSA",
+      "displayName": "DSA & Coding Practice",
+      "score": 50,
+      "weightPercentage": 15,
+      "weightedContribution": 7.5,
+      "attempted": true,
+      "statusDescription": "Practicing fundamentals",
+      "detailMetric": "5 solved out of 22 total"
+    },
+    "MOCK_INTERVIEW": {
+      "dimension": "MOCK_INTERVIEW",
+      "displayName": "Mock Technical Interview",
+      "score": 70,
+      "weightPercentage": 15,
+      "weightedContribution": 10.5,
+      "attempted": true,
+      "statusDescription": "Strong technical communication",
+      "detailMetric": "1 completed (Avg: 70%, Best: 70%)"
+    },
+    "RESUME": {
+      "dimension": "RESUME",
+      "displayName": "Resume Alignment & Strength",
+      "score": 75,
+      "weightPercentage": 15,
+      "weightedContribution": 11.25,
+      "attempted": true,
+      "statusDescription": "Resume strongly aligned with target goal",
+      "detailMetric": "17 extracted skills"
+    }
+  },
+  "strongestDimensions": ["Diagnostic Assessment", "Verified Portfolio Skills"],
+  "weakestDimensions": ["DSA & Coding Practice", "Career Roadmap Progress"],
+  "skillGaps": [
+    {
+      "skill": "Docker",
+      "priority": "HIGH",
+      "source": "TARGET_CAREER_ALIGNMENT",
+      "evidence": [
+        "Required competency for Java Backend Developer",
+        "Found on resume but not yet verified in platform portfolio"
+      ],
+      "recommendedAction": "Study Docker via roadmap milestones and solve related practice problems",
+      "relatedRoadmapTopic": "Docker & Containerization"
+    }
+  ],
+  "prioritizedActions": [
+    {
+      "id": "ACT_ROADMAP_1",
+      "title": "Master Docker on Roadmap",
+      "description": "Advance your Java Backend Developer journey by tackling: Containerization",
+      "category": "ROADMAP",
+      "priority": "HIGH",
+      "reasoning": "Directly closes your highest-priority skill gap (Docker) for Java Backend Developer.",
+      "estimatedImpactPoints": 12,
+      "actionUrl": "/roadmap",
+      "completed": false
+    }
+  ],
+  "calculatedAt": "2026-08-23T19:50:00Z"
+}
+```
+
+### 16.2 Get Prioritized Action Plan
+- **Endpoint**: `GET /api/career-intelligence/actions`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK`
+```json
+[
+  {
+    "id": "ACT_ASSESSMENT_1",
+    "title": "Complete Baseline Diagnostic Quiz",
+    "description": "Take the 10-question adaptive assessment to establish your verified proficiency tier.",
+    "category": "ASSESSMENT",
+    "priority": "CRITICAL",
+    "reasoning": "Essential first milestone: Unlocks tailored recommendations and baseline diagnostic scoring.",
+    "estimatedImpactPoints": 15,
+    "actionUrl": "/quiz",
+    "completed": false
+  }
+]
+```
+
+
+---
+
+## 17. AI Personalized Action Plan Endpoints
+
+### 17.1 Get Personalized AI Action Plan
+- **Endpoint**: `GET /api/ai/action-plan`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK`
+```json
+{
+  "userId": 42,
+  "targetCareer": "Java Backend Developer",
+  "title": "Personalized Java Backend Development Roadmap",
+  "summary": "Focus on mastering core backend fundamentals, database indexing, and mock interview communication...",
+  "currentState": "DEVELOPING",
+  "currentStateDisplayName": "Developing",
+  "overallReadinessScore": 68,
+  "primaryPriority": "CRITICAL",
+  "actions": [
+    {
+      "id": "ACT_AI_1",
+      "title": "Master Relational Databases & SQL Queries",
+      "description": "Complete SQL milestone checkpoints and solve relational database schema design problems.",
+      "category": "ROADMAP",
+      "priority": "CRITICAL",
+      "whyItMatters": "Closes your highest priority skill gap in backend persistence architecture.",
+      "expectedOutcome": "Proficiency in complex SQL joins, indexing, and transactional boundaries.",
+      "estimatedEffort": "3-5 hours",
+      "actionUrl": "/roadmap",
+      "estimatedImpactPoints": 15
+    }
+  ],
+  "estimatedTimeframe": "3-4 Weeks",
+  "motivationalNote": "Consistent daily milestone completion is the fastest pathway to technical interview confidence.",
+  "source": "AI_GENERATED",
+  "provider": "mock",
+  "model": "gpt-4o-mini",
+  "latencyMs": 18,
+  "generatedAt": "2026-08-23T20:06:25Z"
+}
+```
+
+### 17.2 Force Refresh AI Action Plan
+- **Endpoint**: `POST /api/ai/action-plan/refresh`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (Returns fresh `AiActionPlanDto`)
+
+
+---
+
+## 18. Adaptive Weekly Planner Endpoints
+
+### 18.1 Get Current Active Weekly Plan
+- **Endpoint**: `GET /api/planner/current`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (`WeeklyPlanDto`)
+
+### 18.2 Generate New Weekly Plan
+- **Endpoint**: `POST /api/planner/generate`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (`WeeklyPlanDto`)
+
+### 18.3 Refresh Active Weekly Plan (Adaptive Rescheduling)
+- **Endpoint**: `POST /api/planner/refresh`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (Preserves completed tasks and adapts uncompleted milestones)
+
+### 18.4 Get Today's Scheduled Tasks
+- **Endpoint**: `GET /api/planner/today`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (`List<LearningTaskDto>`)
+
+### 18.5 Get 7-Day Weekly Schedule
+- **Endpoint**: `GET /api/planner/week`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (`List<DailyScheduleDto>`)
+
+### 18.6 Get Planner Progress & Streak
+- **Endpoint**: `GET /api/planner/progress`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (`PlannerProgressDto`)
+
+### 18.7 Get & Update Planner Preferences
+- **Endpoint**: `GET /api/planner/preferences` | `PUT /api/planner/preferences`
+- **Authentication**: Required (JWT Bearer token)
+- **Body for PUT**:
+```json
+{
+  "dailyStudyMinutes": 60,
+  "preferredStudyWindow": "FLEXIBLE",
+  "preferredDays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
+  "weeklyGoal": "Improve Java Backend readiness"
+}
+```
+
+### 18.8 Task Lifecycle Operations
+- **Start Task**: `POST /api/planner/tasks/{id}/start`
+- **Complete Task**: `POST /api/planner/tasks/{id}/complete`
+- **Skip Task**: `POST /api/planner/tasks/{id}/skip`
+- **Authentication**: Required (Strict anti-IDOR user isolation enforced)
+
+### 18.9 Admin Aggregate Planner Stats
+- **Endpoint**: `GET /api/admin/planner/stats`
+- **Authentication**: Required (`ROLE_ADMIN`)
+- **Response**: `HTTP 200 OK` (`PlannerAdminStatsDto`)
+
+
+---
+
+## 19. AI Progress Coach & Weekly Intelligence Endpoints
+
+### 19.1 Get Current Weekly Progress Report
+- **Endpoint**: `GET /api/ai/progress/weekly`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (`WeeklyProgressReportDto`)
+```json
+{
+  "id": 1,
+  "userId": 42,
+  "periodStart": "2026-08-17",
+  "periodEnd": "2026-08-23",
+  "overallProgressScore": 68,
+  "careerReadinessScore": 54,
+  "roadmapProgress": 40,
+  "dsaProgress": 25,
+  "dsaSolvedCount": 5,
+  "dsaTotalCount": 20,
+  "interviewProgress": 65,
+  "interviewCompletedCount": 2,
+  "plannerConsistency": 85,
+  "completedTasks": 6,
+  "skippedTasks": 1,
+  "studyMinutes": 270,
+  "streakDays": 4,
+  "roadmapTrend": "IMPROVING",
+  "dsaTrend": "IMPROVING",
+  "interviewTrend": "STABLE",
+  "plannerTrend": "IMPROVING",
+  "overallTrend": "IMPROVING",
+  "strengths": ["Strong daily learning consistency", "Solid curriculum progression"],
+  "weaknesses": ["Mock interview practice volume below recommended threshold"],
+  "improvements": ["Study habit formation is trending positively (+4 streak days)"],
+  "topAchievements": ["Completed 6 scheduled learning milestones in Weekly Planner"],
+  "priorityAreas": ["Schedule timed 5-question mock interview to build screen confidence"],
+  "nextWeekFocus": [
+    {
+      "title": "Complete Next Roadmap Checkpoint",
+      "category": "ROADMAP",
+      "whyItMatters": "Closes foundational curriculum gaps in target track.",
+      "actionUrl": "/roadmap",
+      "estimatedEffort": "45 mins"
+    }
+  ],
+  "coachSummary": "Your weekly study habit formation is strong with consistent roadmap progress...",
+  "source": "AI",
+  "generatedAt": "2026-08-23T16:20:00Z"
+}
+```
+
+### 19.2 Refresh Weekly Progress Report
+- **Endpoint**: `POST /api/ai/progress/refresh`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (Forces deterministic recalculation + AI re-analysis)
+
+### 19.3 Get Weekly Progress Report History
+- **Endpoint**: `GET /api/ai/progress/history`
+- **Authentication**: Required (JWT Bearer token)
+- **Response**: `HTTP 200 OK` (`List<WeeklyProgressReportDto>`)

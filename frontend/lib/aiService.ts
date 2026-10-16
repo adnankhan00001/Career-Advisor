@@ -127,3 +127,72 @@ export async function sendAiChatMessage(request: AiChatRequest): Promise<AiChatR
     body: JSON.stringify(request),
   });
 }
+
+
+export type ActionCategory =
+  | "ROADMAP"
+  | "DSA"
+  | "RESUME"
+  | "INTERVIEW"
+  | "ASSESSMENT"
+  | "SKILL";
+
+export type GapPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+
+export interface AiActionPlanItem {
+  id: string;
+  title: string;
+  description: string;
+  category: ActionCategory;
+  priority: GapPriority;
+  whyItMatters: string;
+  expectedOutcome: string;
+  estimatedEffort: string;
+  actionUrl: string;
+  estimatedImpactPoints: number;
+}
+
+export interface AiActionPlan {
+  userId: number;
+  targetCareer: string;
+  title: string;
+  summary: string;
+  currentState: string;
+  currentStateDisplayName: string;
+  overallReadinessScore: number;
+  primaryPriority: GapPriority;
+  actions: AiActionPlanItem[];
+  estimatedTimeframe: string;
+  motivationalNote: string;
+  source: "AI_GENERATED" | "DETERMINISTIC_FALLBACK" | string;
+  provider: string;
+  model: string;
+  latencyMs: number;
+  generatedAt: string;
+}
+
+/**
+ * Retrieves the personalized AI Career Action Plan for the authenticated user.
+ */
+export async function getAiActionPlan(): Promise<AiActionPlan | null> {
+  try {
+    return await apiRequest<AiActionPlan>(API_ENDPOINTS.AI.ACTION_PLAN, {
+      method: "GET",
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Forces regeneration of a fresh AI Career Action Plan.
+ */
+export async function refreshAiActionPlan(): Promise<AiActionPlan | null> {
+  try {
+    return await apiRequest<AiActionPlan>(API_ENDPOINTS.AI.ACTION_PLAN_REFRESH, {
+      method: "POST",
+    });
+  } catch {
+    return null;
+  }
+}

@@ -27,6 +27,9 @@ public class PersonalAiContextDto {
     private DsaAiProgressDto dsaProgress;
     private MockInterviewAiSummaryDto mockInterviewPerformance;
     private RecommendationAiSummaryDto recommendations;
+    private CareerIntelligenceAiSummaryDto careerIntelligence;
+    private PlannerAiSummaryDto plannerSummary;
+    private ProgressAiSummaryDto progressReport;
 
     @Builder.Default
     private Instant contextTimestamp = Instant.now();

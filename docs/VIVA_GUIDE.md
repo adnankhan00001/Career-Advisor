@@ -1113,3 +1113,182 @@ The `CallSession` lifecycle is strictly enforced on the Spring Boot backend:
 
 
 
+
+
+---
+
+## 17. Unified Career Intelligence Engine & Scoring Architecture
+
+### Q1: What is the Unified Career Intelligence Engine and how does it differ from traditional recommendation systems?
+**Answer**:
+The **Unified AI Career Intelligence Engine** is a deterministic, multi-dimensional evaluation pipeline that unifies authoritative evidence across 6 distinct dimensions:
+1. **Verified Portfolio Skills** (20% weight)
+2. **Career Roadmap Progress** (20% weight)
+3. **Diagnostic Quiz Assessment** (15% weight)
+4. **DSA Coding Practice** (15% weight)
+5. **Technical Mock Interviews** (15% weight)
+6. **Resume Alignment & Strength** (15% weight)
+
+Unlike generic heuristic systems or opaque LLM generation, our intelligence engine is:
+- **100% Deterministic & Explainable**: Mathematical weighted sums ensure identical inputs produce identical scores without non-deterministic hallucinations.
+- **Robust Against Missing Data**: Distinguishes between "unattempted" and "failed" state, avoiding artificial deflation or inflation.
+- **Evidence-Grounded**: Each skill gap and recommended action carries an explicit audit trail of why it was prioritized (e.g. required by target career, detected in resume, missing from portfolio, or flagged in mock interview).
+
+---
+
+### Q2: What is the exact formula for overall readiness calculation?
+**Answer**:
+Overall readiness score is bounded in the range $[0, 100]$:
+$$\text{Overall Score} = \min\left(100, \max\left(0, \text{round}\left(\sum_{d \in \text{Dimensions}} \frac{\text{score}_d \times \text{weight}_d}{100}\right)\right)\right)$$
+
+Where $\sum \text{weight}_d = 20 + 20 + 15 + 15 + 15 + 15 = 100\%$.
+
+The categorical readiness tiers are derived deterministically:
+- **86–100%**: `JOB_READY` — Complete technical proficiency, portfolio depth, and interview readiness.
+- **66–85%**: `ADVANCED` — Strong core competence with minor refinement needed.
+- **45–65%**: `DEVELOPING` — Active skill builder with solid conceptual grounding.
+- **25–44%**: `FOUNDATIONAL` — Basic milestones completed; expanding problem solving.
+- **0–24%**: `BEGINNER` — Initial onboarding and diagnostic phase.
+
+---
+
+### Q3: How does the AI Chatbot interact with the Career Intelligence Engine?
+**Answer**:
+The engine maintains a strict **AI Integration Boundary**:
+1. The **Deterministic Intelligence Engine** computes the authoritative snapshot (`CareerIntelligenceDto`).
+2. `UserAiContextService` summarizes the readiness score, strengths, growth areas, skill gaps, and action titles into a compact, token-efficient structure.
+3. `AiContextBuilder` injects this block into the system prompt.
+4. The LLM acts purely as a conversational interpreter/mentor, explaining the underlying deterministic intelligence to the candidate without inventing or altering scores.
+
+
+---
+
+## 18. AI Action Plan & Coaching Architecture
+
+### Q1: How does the AI Action Plan ensure grounding and prevent hallucinations?
+**Answer**:
+The **AI Action Plan** operates strictly under a **Deterministic-First AI Boundary**:
+1. The **Deterministic Intelligence Engine** computes the authoritative snapshot (`CareerIntelligenceDto`), scores, and skill gaps mathematically from database records.
+2. The **Prompt Builder** extracts a compact, anonymized summary with explicit anti-hallucination constraints:
+   - *"Base your plan exclusively on the provided candidate intelligence."*
+   - *"Never invent candidate accomplishments, skills, scores, or certifications."*
+   - *"Never change or recalculate the supplied readiness score."*
+3. The LLM produces a structured JSON output that is parsed and validated against strict schema rules (bounded action count, non-null URLs, valid category enums).
+4. If parsing fails or invalid counts are detected, the system safely falls back to the deterministic action list with `source = "DETERMINISTIC_FALLBACK"`.
+
+---
+
+### Q2: What happens if an external AI provider (like OpenAI or Gemini) is down or rate-limited?
+**Answer**:
+Our architecture guarantees **Zero-Downtime Resilience**:
+- The service catches provider timeouts, network errors, rate limits, and JSON malformations gracefully.
+- It immediately invokes `buildDeterministicFallbackPlan(user, intel)`, translating the deterministic engine's prioritized actions into `AiActionPlanItemDto` objects.
+- The UI seamlessly renders the fallback plan with a clear indicator, allowing candidates to continue their learning journey uninterrupted.
+
+
+---
+
+## 19. Adaptive Weekly Planner & Execution Architecture
+
+### Q1: What is the core difference between the deterministic engine and the AI adaptive planner?
+**Answer**:
+- The **Deterministic Planner Engine** (`DeterministicPlannerEngine`) deterministically maps mathematically verified skill gaps, next roadmap steps, low DSA areas, and unattempted diagnostic milestones across the user's preferred days and daily minute budget. It guarantees 100% platform availability with zero reliance on external LLM APIs.
+- The **AI Adaptive Planner** (`AdaptivePlannerAiPromptBuilder` & LLM) adds personalized coaching, context-aware sequencing, and dynamic effort balancing. If the AI provider is disabled, rate-limited, or outputs invalid JSON, the system smoothly falls back to the deterministic engine without breaking the user experience.
+
+---
+
+### Q2: How does the system prevent AI hallucinations in generated learning plans?
+**Answer**:
+1. The prompt provides strict candidate intelligence boundaries (readiness scores, verified gaps, profile target).
+2. The system prompt explicitly forbids inventing certifications or scores.
+3. Every generated action URL is strictly sanitized and validated against whitelist paths (`/roadmap`, `/practice`, `/resume`, `/mock-interview`, `/quiz`, `/skills`).
+4. Task categories and priorities must map directly to supported enums. Any deviation triggers immediate deterministic fallback.
+
+---
+
+### Q3: How does adaptive rescheduling work when a candidate skips a milestone?
+**Answer**:
+When a candidate skips a task or clicks *"Refresh Plan"*:
+1. The planner preserves all already completed tasks (`status == COMPLETED`) and their completion timestamps.
+2. The engine evaluates uncompleted or skipped tasks: high-priority or critical roadmap milestones are rescheduled to upcoming study days while lower-priority consolidation tasks are deprioritized or merged.
+3. Daily study budget constraints (`dailyStudyMinutes`) are respected so no future day gets overloaded.
+
+---
+
+### Q4: Why is planner task completion decoupled from actual domain progress?
+**Answer**:
+Decoupling planner task completion from domain completion prevents artificial grade inflation:
+- Marking a planner task *"Complete Java OOP Roadmap milestone"* as completed in the planner reflects the candidate's self-reported study adherence.
+- It does **not** falsely mark the underlying roadmap milestone completed in the database. Actual roadmap progress requires toggling the roadmap checkpoint on `/roadmap`. This maintains data integrity across the evaluation engine.
+
+---
+
+### Q5: How is multi-user isolation and anti-IDOR enforced in the planner?
+**Answer**:
+1. All planner operations extract candidate identity exclusively from `@AuthenticationPrincipal CustomUserDetails`.
+2. The client is never permitted to pass `userId` in request bodies or query parameters.
+3. Repository queries enforce user scoping (`findByIdAndLearningPlan_User(taskId, user)`). Any cross-user attempt to access or complete another candidate's task is immediately rejected with a 404 / access denied exception.
+
+---
+
+### Q6: How does the system handle rate limiting and abuse protection during plan generation?
+**Answer**:
+Plan generation and refreshing are protected with an in-memory timestamp debounce per user ID. If a user rapidly spams the generate or refresh triggers within 2 seconds, the request is throttled with a descriptive message. In production, this protects LLM quotas and database write volume.
+
+---
+
+### Q7: How is the AI Chatbot informed of the candidate's daily study plan?
+**Answer**:
+The `UserAiContextService` loads a compact `PlannerAiSummaryDto` containing the weekly goal, total/completed tasks, adherence percentage, active streak, and today's scheduled tasks. When a user asks *"What should I do today?"*, the chatbot draws directly from this structured context to provide personalized guidance.
+
+
+---
+
+## 20. AI Progress Coach & Weekly Intelligence Architecture
+
+### Q1: Why are numerical progress scores calculated deterministically rather than generated by the LLM?
+**Answer**:
+Allowing LLMs to produce numerical scores introduces serious hallucination risks (e.g. erratic score fluctuations, invented problem counts, arbitrary grade inflation). By separating concerns:
+1. **Deterministic Layer** (`DeterministicProgressEngine`): Computes verified metrics (e.g. roadmap %, solved DSA count, interview avg %, planner adherence %) directly from authoritative database entities.
+2. **AI Interpretation Layer** (`ProgressCoachAiPromptBuilder` & `AiProgressCoachService`): Ingests the deterministic numbers as immutable ground truth and generates qualitative coaching insights (wins, bottlenecks, focus recommendations).
+
+---
+
+### Q2: How does the system compute and classify metric trends?
+**Answer**:
+The engine compares current performance with historical telemetry:
+- **Mock Interviews**: Compares the latest completed interview score against earlier completed sessions (`IMPROVING`, `STABLE`, `DECLINING`, or `INSUFFICIENT_DATA` if < 2 sessions).
+- **Weekly Planner**: Evaluates active streak and task completion percentage (`IMPROVING` if streak $ge$ 2 or completion $ge$ 50%, `DECLINING` if skipped > completed).
+- **Roadmap & DSA**: Evaluates completed milestones and solved volume.
+- **Overall Trend**: Weighted synthesis across dimension trends.
+
+---
+
+### Q3: How is report caching implemented to prevent unnecessary LLM API costs?
+**Answer**:
+Reports are persisted in the `weekly_progress_reports` table and keyed by user ID and `periodStart` (the calendar week's Monday). When a user visits the dashboard:
+1. `getWeeklyReport()` checks if a report for the current week exists generated within the last 24 hours.
+2. If valid, the cached report is returned immediately with zero LLM API calls.
+3. If the user explicitly clicks *"Refresh Coach Analysis"*, a rate-limited `POST /api/ai/progress/refresh` recalculates telemetry and updates the cache.
+
+---
+
+### Q4: How does the system handle AI provider failures or timeouts?
+**Answer**:
+`AiProgressCoachService` implements a strict fallback protocol: if the external AI provider is disabled, rate-limited, times out, or produces invalid JSON, the service catches the exception and populates the coaching narrative, wins, weaknesses, and next-week actions using the deterministic rules in `DeterministicProgressEngine`, flagging `source = "DETERMINISTIC"`.
+
+---
+
+### Q5: How is candidate privacy guaranteed in the Progress Coach?
+**Answer**:
+1. Candidate identity is derived exclusively from the authenticated JWT principal.
+2. Cross-user IDOR access is impossible because database lookups enforce user ownership.
+3. The AI prompt contains zero sensitive data (passwords, tokens, salts, raw resume files).
+4. Private human-to-human chats (Phase 14C) are completely excluded from AI context.
+5. Normal administrators have no access to private user progress reports.
+
+---
+
+### Q6: How does the AI Chatbot utilize progress intelligence?
+**Answer**:
+`UserAiContextService` injects a compact `ProgressAiSummaryDto` into `PersonalAiContextDto`. When a candidate asks conversational questions such as *"How am I doing this week?"* or *"What is my biggest bottleneck?"*, the chatbot system prompt contains live progress scores, trends, wins, and coach assessments, enabling cohesive conversational coaching across the platform.
