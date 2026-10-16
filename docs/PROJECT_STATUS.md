@@ -694,5 +694,13 @@ Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progre
 ## 9. Immediate Next Step
 
 ### Task
-Platform is fully verified across all 15 Phases (577 automated tests passing, 227 backend classes compiled, 22 frontend routes compiled). The next logical task is staging container deployment via Docker Compose or final production cloud deployment.
+Deploy Spring Boot backend and MySQL database to Railway, deploy Next.js frontend to Vercel, and verify the live public application URLs.
+
+### Reason
+All 15 development phases, security configurations, database schemas, and build pipelines have been committed and pushed to GitHub `origin/main` (`8887ea6`). The codebase is 100% prepared for production deployment with environment-based configuration for Railway and Vercel.
+
+### Expected Result
+1. Railway provisions MySQL and deploys Spring Boot backend with HTTPS URL.
+2. Vercel builds Next.js 16 frontend linked to Railway backend URL.
+3. Live end-to-end user registration, authentication, dashboard, and career guidance flows verified on public URLs.
 
