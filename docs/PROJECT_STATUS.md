@@ -635,6 +635,7 @@ Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progre
 
 | Date | Scope / Test Suite | Result | Details |
 | :--- | :--- | :---: | :--- |
+| 2026-10-19 | Frontend Production Build (`npm run build`) | **PASS** | Turbopack compilation succeeded with 0 errors across all 22 routes after input text visibility & autofill normalization fix |
 | 2026-10-16 | Executive PDF Report Generation (`CAREER_ADVISOR_PROJECT_REPORT.pdf`) | **PASS** | Headless Chrome compilation produced 825 KB vectorized publication PDF |
 | 2026-10-16 | Backend Maven Compile (`.\mvnw.cmd clean compile`) | **PASS** | 227 Java source files compiled cleanly with Spring Boot 3.3.4 & Java 17 |
 | 2026-10-16 | Frontend Production Build (`npm run build`) | **PASS** | Turbopack compilation succeeded; 22 routes compiled (0 errors) |
@@ -668,6 +669,8 @@ Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progre
 | ISS-001 | Resume service API called wrong endpoint prefix without `/api`. | High | Frontend Resume | FIXED | 2026-08-22 | 2026-08-22 | Mapped endpoints via `API_ENDPOINTS.RESUMES` in `config.ts` |
 | ISS-002 | Simultaneous call attempts triggered race conditions. | High | WebRTC Engine | FIXED | 2026-08-23 | 2026-08-23 | Enforced server-authoritative state machine with `409 Conflict` guard |
 | ISS-003 | AI Chatbot could potentially hallucinate unattempted quiz scores. | Medium | AI Chatbot | FIXED | 2026-08-22 | 2026-08-22 | Injected strict negative grounding constraints in `AiContextBuilder` |
+| ISS-004 | Input text on login and signup pages rendered white on white background under dark mode preference / missing text-gray-900. | High | Auth UI (Login & Signup) | FIXED | 2026-10-19 | 2026-10-19 | Added color-scheme: light, removed conflicting prefers-color-scheme dark override in globals.css, enforced explicit bg-white text-gray-900 placeholder:text-gray-400 across all form inputs, and added -webkit-autofill normalization. |
+
 
 ---
 
@@ -732,7 +735,15 @@ Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progre
   - Authentication Flow: `POST https://backend-production-f4cb.up.railway.app/api/auth/login` $\rightarrow$ HTTP 200 (Credentials verified, fresh JWT issued)
   - Protected API Access: `GET https://backend-production-f4cb.up.railway.app/api/problems` $\rightarrow$ HTTP 200 (14 curated coding problems successfully returned via Bearer JWT)
 
+- **Input Text Visibility & Autofill Hardening (2026-10-19)**:
+  - Resolved white-on-white text input rendering issue on `/login` and `/signup`.
+  - Enforced `color-scheme: light` and removed conflicting `@media (prefers-color-scheme: dark)` in `frontend/app/globals.css`.
+  - Added baseline `input, textarea, select { color: #111827; }` and `-webkit-autofill` normalization.
+  - Added explicit `bg-white text-gray-900 placeholder:text-gray-400` across all input controls on login (`email`, `password`) and signup (`name`, `email`, `password`, `confirmPassword`).
+  - Production build re-verified cleanly with 22 routes compiled (0 errors).
+
 ---
+
 
 ## 9. Immediate Next Step
 
