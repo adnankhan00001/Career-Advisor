@@ -92,6 +92,9 @@ class MentorControllerTests {
                 .bio("Fintech mentor")
                 .expertiseAreas("Distributed Systems, Payments")
                 .maxMentees(3)
+                .linkedinUrl("https://linkedin.com/in/alex")
+                .githubUrl("https://github.com/alex")
+                .codingProfileUrl("https://leetcode.com/alex")
                 .build();
 
         MentorProfileDto responseDto = MentorProfileDto.builder()

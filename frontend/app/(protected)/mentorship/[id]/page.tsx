@@ -195,7 +195,7 @@ export default function IndividualMentorProfilePage({ params }: MentorProfilePag
   const isAccepted = existingRequest?.status === "ACCEPTED";
 
   const hasExternalLinks = Boolean(
-    mentor.linkedinUrl || mentor.githubUrl || mentor.portfolioUrl
+    mentor.linkedinUrl || mentor.githubUrl || mentor.codingProfileUrl || mentor.portfolioUrl
   );
 
   return (
@@ -396,7 +396,7 @@ export default function IndividualMentorProfilePage({ params }: MentorProfilePag
             <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider text-[11px]">
               Verified Profiles & Portfolio
             </h2>
-            <div className="flex flex-col sm:flex-row gap-3 text-xs">
+            <div className="flex flex-col sm:flex-row gap-3 text-xs flex-wrap">
               {mentor.linkedinUrl && (
                 <a
                   href={mentor.linkedinUrl}
@@ -421,6 +421,18 @@ export default function IndividualMentorProfilePage({ params }: MentorProfilePag
                 </a>
               )}
 
+              {mentor.codingProfileUrl && (
+                <a
+                  href={mentor.codingProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50/40 hover:bg-amber-50 text-amber-800 font-semibold transition"
+                >
+                  <span>⚡</span>
+                  <span>Coding Practice Profile ↗</span>
+                </a>
+              )}
+
               {mentor.portfolioUrl && (
                 <a
                   href={mentor.portfolioUrl}
@@ -429,7 +441,7 @@ export default function IndividualMentorProfilePage({ params }: MentorProfilePag
                   className="inline-flex items-center gap-2 p-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-indigo-700 font-semibold transition"
                 >
                   <span>🌐</span>
-                  <span>Portfolio & Coding Profile ↗</span>
+                  <span>Portfolio & Website ↗</span>
                 </a>
               )}
             </div>

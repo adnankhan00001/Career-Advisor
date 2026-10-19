@@ -768,6 +768,41 @@ export default function MentorManageDashboardPage() {
                     </div>
                   </div>
 
+                  {/* Student Academic & Technical Profile */}
+                  <div className="p-3.5 rounded-xl bg-purple-50/50 border border-purple-100 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-900 flex items-center gap-1">
+                          <span>🎯 Target Career:</span>
+                          <span className="text-purple-700">{req.studentCareerGoal || "Software Engineer"}</span>
+                        </span>
+                      </div>
+                      {req.studentUserLevel && (
+                        <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                          Level: {req.studentUserLevel}
+                        </span>
+                      )}
+                    </div>
+
+                    {req.studentSkills && req.studentSkills.length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        <span className="text-[11px] font-semibold text-gray-600 block">
+                          Acquired Skills & Competencies:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {req.studentSkills.map((skill, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white text-gray-700 border border-purple-200 shadow-2xs"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Student Goal Description */}
                   <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-700 space-y-1">
                     <span className="font-semibold text-gray-900 block">Student&apos;s Mentorship Goal:</span>

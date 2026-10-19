@@ -10,10 +10,12 @@ import com.careeradvisor.backend.repository.ConversationRepository;
 import com.careeradvisor.backend.repository.MentorProfileRepository;
 import com.careeradvisor.backend.repository.MentorshipRequestRepository;
 import com.careeradvisor.backend.repository.UserRepository;
+import com.careeradvisor.backend.repository.UserSkillRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,18 +27,21 @@ public class MentorshipRequestService {
     private final UserRepository userRepository;
     private final ConversationService conversationService;
     private final ConversationRepository conversationRepository;
+    private final UserSkillRepository userSkillRepository;
 
     public MentorshipRequestService(
             MentorshipRequestRepository mentorshipRequestRepository,
             MentorProfileRepository mentorProfileRepository,
             UserRepository userRepository,
             ConversationService conversationService,
-            ConversationRepository conversationRepository) {
+            ConversationRepository conversationRepository,
+            UserSkillRepository userSkillRepository) {
         this.mentorshipRequestRepository = mentorshipRequestRepository;
         this.mentorProfileRepository = mentorProfileRepository;
         this.userRepository = userRepository;
         this.conversationService = conversationService;
         this.conversationRepository = conversationRepository;
+        this.userSkillRepository = userSkillRepository;
     }
 
     @Transactional
@@ -225,11 +230,29 @@ public class MentorshipRequestService {
     }
 
     public MentorshipRequestDto mapToDto(MentorshipRequest r) {
+        String careerGoal = null;
+        String userLevel = null;
+        List<String> studentSkills = Collections.emptyList();
+
+        if (r.getStudent() != null) {
+            careerGoal = r.getStudent().getCareerGoal();
+            userLevel = r.getStudent().getUserLevel();
+            if (userSkillRepository != null) {
+                studentSkills = userSkillRepository.findByUser(r.getStudent())
+                        .stream()
+                        .map(UserSkill::getSkillName)
+                        .collect(Collectors.toList());
+            }
+        }
+
         return MentorshipRequestDto.builder()
                 .id(r.getId())
                 .studentId(r.getStudent() != null ? r.getStudent().getId() : null)
                 .studentName(r.getStudent() != null ? r.getStudent().getName() : null)
                 .studentEmail(r.getStudent() != null ? r.getStudent().getEmail() : null)
+                .studentCareerGoal(careerGoal)
+                .studentUserLevel(userLevel)
+                .studentSkills(studentSkills)
                 .mentorProfileId(r.getMentor() != null ? r.getMentor().getId() : null)
                 .mentorUserId(r.getMentor() != null && r.getMentor().getUser() != null ? r.getMentor().getUser().getId() : null)
                 .mentorName(r.getMentor() != null && r.getMentor().getUser() != null ? r.getMentor().getUser().getName() : null)

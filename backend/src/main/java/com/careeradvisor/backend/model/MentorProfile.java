@@ -50,6 +50,9 @@ public class MentorProfile {
     @Column(name = "github_url", length = 255)
     private String githubUrl;
 
+    @Column(name = "coding_profile_url", length = 255)
+    private String codingProfileUrl;
+
     @Column(name = "portfolio_url", length = 255)
     private String portfolioUrl;
 

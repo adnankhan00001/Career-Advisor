@@ -157,6 +157,7 @@ export const API_ENDPOINTS = {
       APPROVE: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/approve`,
       REJECT: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/reject`,
       SUSPEND: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/suspend`,
+      REACTIVATE: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/reactivate`,
       CONFIG: `${API_BASE_URL}/api/admin/mentors/config`,
     },
   },

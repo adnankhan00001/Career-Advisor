@@ -52,6 +52,9 @@ export default function AdminMentorsPage() {
   const [suspendReason, setSuspendReason] = useState<string>("");
   const [isSubmittingSuspend, setIsSubmittingSuspend] = useState<boolean>(false);
 
+  const [reactivateModalProfile, setReactivateModalProfile] = useState<MentorProfileDto | null>(null);
+  const [isSubmittingReactivate, setIsSubmittingReactivate] = useState<boolean>(false);
+
   // Capacity Form State
   const [capacityForm, setCapacityForm] = useState<MentorshipCapacityConfigDto>({
     minMentees: 1,
@@ -76,14 +79,15 @@ export default function AdminMentorsPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (rejectModalProfile) setRejectModalProfile(null);
+        if (reactivateModalProfile) setReactivateModalProfile(null);
+        else if (rejectModalProfile) setRejectModalProfile(null);
         else if (suspendModalProfile) setSuspendModalProfile(null);
         else if (inspectModalProfile) setInspectModalProfile(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [rejectModalProfile, suspendModalProfile, inspectModalProfile]);
+  }, [reactivateModalProfile, rejectModalProfile, suspendModalProfile, inspectModalProfile]);
 
   // Load All Admin Mentor Data
   const loadAdminData = useCallback(async () => {
@@ -289,6 +293,32 @@ export default function AdminMentorsPage() {
       });
     } finally {
       setIsSubmittingSuspend(false);
+    }
+  };
+
+  // Reactivate Mentor Handler
+  const handleConfirmReactivate = async () => {
+    if (!reactivateModalProfile) return;
+    setIsSubmittingReactivate(true);
+    setFeedback(null);
+    try {
+      await mentorService.reactivateMentor(reactivateModalProfile.id);
+      setFeedback({
+        type: "success",
+        message: `Mentor ${reactivateModalProfile.name} has been reactivated successfully! Profile restored to public discovery.`,
+      });
+      setReactivateModalProfile(null);
+      if (inspectModalProfile?.id === reactivateModalProfile.id) {
+        setInspectModalProfile(null);
+      }
+      await loadAdminData();
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        message: err?.message || "Failed to reactivate mentor.",
+      });
+    } finally {
+      setIsSubmittingReactivate(false);
     }
   };
 
@@ -935,7 +965,7 @@ export default function AdminMentorsPage() {
                 Suspended Mentors ({suspendedMentors.length})
               </h2>
               <p className="text-xs text-gray-500">
-                Mentors whose platform credentials and public discovery have been suspended. Note: Reactivation is not supported by backend APIs without re-application or manual database adjustment.
+                Mentors whose platform credentials and public discovery have been suspended. Review dossier or safely reactivate to restore to active public discovery.
               </p>
             </div>
 
@@ -1004,9 +1034,13 @@ export default function AdminMentorsPage() {
                     >
                       Inspect Dossier
                     </button>
-                    <span className="text-[11px] text-gray-500 italic bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl">
-                      Reactivation unsupported
-                    </span>
+                    <button
+                      onClick={() => setReactivateModalProfile(mentor)}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>🔄</span>
+                      <span>Reactivate Mentor</span>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1277,6 +1311,16 @@ export default function AdminMentorsPage() {
                       💻 GitHub: {inspectModalProfile.githubUrl}
                     </a>
                   )}
+                  {inspectModalProfile.codingProfileUrl && (
+                    <a
+                      href={inspectModalProfile.codingProfileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-amber-700 hover:underline font-semibold"
+                    >
+                      ⚡ Coding Profile: {inspectModalProfile.codingProfileUrl}
+                    </a>
+                  )}
                   {inspectModalProfile.portfolioUrl && (
                     <a
                       href={inspectModalProfile.portfolioUrl}
@@ -1289,6 +1333,7 @@ export default function AdminMentorsPage() {
                   )}
                   {!inspectModalProfile.linkedinUrl &&
                     !inspectModalProfile.githubUrl &&
+                    !inspectModalProfile.codingProfileUrl &&
                     !inspectModalProfile.portfolioUrl && (
                       <p className="text-gray-400 italic">No external links provided.</p>
                     )}
@@ -1349,6 +1394,18 @@ export default function AdminMentorsPage() {
                     className="px-4 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 font-bold text-xs shadow-md transition cursor-pointer"
                   >
                     Suspend Mentor...
+                  </button>
+                )}
+
+                {inspectModalProfile.verificationStatus === "SUSPENDED" && (
+                  <button
+                    onClick={() => {
+                      setReactivateModalProfile(inspectModalProfile);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>🔄</span>
+                    <span>Reactivate Mentor</span>
                   </button>
                 )}
               </div>
@@ -1481,7 +1538,7 @@ export default function AdminMentorsPage() {
                 <li>The mentor is immediately removed from public discovery in the Mentorship Hub.</li>
                 <li>Students cannot submit new mentorship requests to this mentor.</li>
                 <li>Existing accepted mentorships, chat conversations, and message history remain preserved.</li>
-                <li>Reactivation is not supported by backend APIs without administrative database intervention.</li>
+                <li>Administrators can safely reactivate this mentor at any time from the Suspended Mentors tab.</li>
               </ul>
             </div>
 
@@ -1525,6 +1582,73 @@ export default function AdminMentorsPage() {
                   </>
                 ) : (
                   <span>Confirm Suspension</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: REACTIVATE MENTOR CONFIRMATION                   */}
+      {/* ======================================================== */}
+      {reactivateModalProfile && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reactivate-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        >
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 id="reactivate-dialog-title" className="text-lg font-extrabold text-gray-900">
+                  Reactivate Mentor Profile
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Mentor: {reactivateModalProfile.name} ({reactivateModalProfile.jobTitle} at {reactivateModalProfile.company})
+                </p>
+              </div>
+              <button
+                onClick={() => setReactivateModalProfile(null)}
+                className="text-gray-400 hover:text-gray-600 font-bold text-base cursor-pointer"
+                aria-label="Close reactivate modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs space-y-2">
+              <p className="font-bold flex items-center gap-1.5 text-emerald-900">
+                <span>🔄</span>
+                <span>Restore Mentor Platform Access</span>
+              </p>
+              <p className="text-emerald-800 leading-relaxed">
+                Reactivating this mentor will set their status back to <strong>APPROVED</strong>, clear any previous suspension reasons, re-enable public discovery in the Mentorship Hub, and allow students to submit mentorship requests.
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReactivateModalProfile(null)}
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReactivate}
+                disabled={isSubmittingReactivate}
+                className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isSubmittingReactivate ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Reactivating...</span>
+                  </>
+                ) : (
+                  <span>Confirm Reactivation</span>
                 )}
               </button>
             </div>

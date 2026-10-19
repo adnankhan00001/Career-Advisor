@@ -8,6 +8,7 @@ import com.careeradvisor.backend.repository.ConversationRepository;
 import com.careeradvisor.backend.repository.MentorProfileRepository;
 import com.careeradvisor.backend.repository.MentorshipRequestRepository;
 import com.careeradvisor.backend.repository.UserRepository;
+import com.careeradvisor.backend.repository.UserSkillRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,9 @@ class MentorshipServiceTests {
     @Mock
     private ConversationRepository conversationRepository;
 
+    @Mock
+    private UserSkillRepository userSkillRepository;
+
     private MentorshipCapacityConfigService capacityConfigService;
     private MentorProfileService mentorProfileService;
     private MentorshipRequestService mentorshipRequestService;
@@ -65,7 +69,8 @@ class MentorshipServiceTests {
                 mentorProfileRepository,
                 userRepository,
                 conversationService,
-                conversationRepository
+                conversationRepository,
+                userSkillRepository
         );
 
         studentUser = User.builder()
@@ -103,7 +108,7 @@ class MentorshipServiceTests {
     @Test
     @DisplayName("Submit mentor application creates profile with APPLIED status and validated capacity")
     void testSubmitApplication_Success() {
-        when(mentorProfileRepository.existsByUserId(studentUser.getId())).thenReturn(false);
+        when(mentorProfileRepository.findByUserId(studentUser.getId())).thenReturn(Optional.empty());
         when(userRepository.findById(studentUser.getId())).thenReturn(Optional.of(studentUser));
         when(mentorProfileRepository.save(any(MentorProfile.class))).thenAnswer(i -> {
             MentorProfile p = i.getArgument(0);
@@ -120,6 +125,7 @@ class MentorshipServiceTests {
                 .maxMentees(2)
                 .linkedinUrl("https://linkedin.com/in/alice")
                 .githubUrl("https://github.com/alice")
+                .codingProfileUrl("https://leetcode.com/alice")
                 .build();
 
         MentorProfileDto result = mentorProfileService.submitApplication(studentUser.getId(), dto);
@@ -129,6 +135,7 @@ class MentorshipServiceTests {
         assertEquals("Backend Engineer", result.getJobTitle());
         assertEquals(MentorVerificationStatus.APPLIED, result.getVerificationStatus());
         assertEquals(2, result.getMaxMentees());
+        assertEquals("https://leetcode.com/alice", result.getCodingProfileUrl());
         assertTrue(result.isActive());
         verify(mentorProfileRepository, times(1)).save(any(MentorProfile.class));
     }
@@ -136,7 +143,10 @@ class MentorshipServiceTests {
     @Test
     @DisplayName("Submit application throws DuplicateResourceException if profile already exists")
     void testSubmitApplication_DuplicateThrowsException() {
-        when(mentorProfileRepository.existsByUserId(studentUser.getId())).thenReturn(true);
+        MentorProfile existingPending = MentorProfile.builder()
+                .verificationStatus(MentorVerificationStatus.APPLIED)
+                .build();
+        when(mentorProfileRepository.findByUserId(studentUser.getId())).thenReturn(Optional.of(existingPending));
 
         MentorApplicationDto dto = MentorApplicationDto.builder()
                 .jobTitle("Backend Engineer")
@@ -150,9 +160,49 @@ class MentorshipServiceTests {
     }
 
     @Test
+    @DisplayName("Submit application allows reapplication when previous application was REJECTED")
+    void testSubmitApplication_ReapplicationAfterRejection_Success() {
+        MentorProfile rejectedProfile = MentorProfile.builder()
+                .id(99L)
+                .user(studentUser)
+                .jobTitle("Junior Dev")
+                .company("Old Corp")
+                .yearsOfExperience(1)
+                .expertiseAreas("HTML")
+                .verificationStatus(MentorVerificationStatus.REJECTED)
+                .rejectionReason("Insufficient experience")
+                .isActive(true)
+                .build();
+
+        when(mentorProfileRepository.findByUserId(studentUser.getId())).thenReturn(Optional.of(rejectedProfile));
+        when(mentorProfileRepository.save(any(MentorProfile.class))).thenAnswer(i -> i.getArgument(0));
+
+        MentorApplicationDto dto = MentorApplicationDto.builder()
+                .jobTitle("Senior Engineer")
+                .company("New Corp")
+                .yearsOfExperience(5)
+                .expertiseAreas("Java, Spring Boot")
+                .maxMentees(3)
+                .linkedinUrl("https://linkedin.com/in/alice")
+                .githubUrl("https://github.com/alice")
+                .codingProfileUrl("https://leetcode.com/alice")
+                .build();
+
+        MentorProfileDto result = mentorProfileService.submitApplication(studentUser.getId(), dto);
+
+        assertNotNull(result);
+        assertEquals(99L, result.getId());
+        assertEquals(MentorVerificationStatus.APPLIED, result.getVerificationStatus());
+        assertNull(result.getRejectionReason());
+        assertEquals("Senior Engineer", result.getJobTitle());
+        assertEquals("https://leetcode.com/alice", result.getCodingProfileUrl());
+        verify(mentorProfileRepository, times(1)).save(rejectedProfile);
+    }
+
+    @Test
     @DisplayName("Submit application throws IllegalArgumentException for invalid URL format")
     void testSubmitApplication_InvalidUrl_ThrowsException() {
-        when(mentorProfileRepository.existsByUserId(studentUser.getId())).thenReturn(false);
+        when(mentorProfileRepository.findByUserId(studentUser.getId())).thenReturn(Optional.empty());
         when(userRepository.findById(studentUser.getId())).thenReturn(Optional.of(studentUser));
 
         MentorApplicationDto dto = MentorApplicationDto.builder()
@@ -220,6 +270,41 @@ class MentorshipServiceTests {
         MentorProfileDto rejected = mentorProfileService.rejectApplication(approvedMentor.getId(), "Incomplete profile");
         assertEquals(MentorVerificationStatus.REJECTED, rejected.getVerificationStatus());
         assertEquals("Incomplete profile", rejected.getRejectionReason());
+    }
+
+    @Test
+    @DisplayName("Reactivating a SUSPENDED mentor restores APPROVED status and clears rejection reason")
+    void testReactivateMentor_Success() {
+        MentorProfile suspended = MentorProfile.builder()
+                .id(42L)
+                .user(mentorUser)
+                .jobTitle("Staff Engineer")
+                .company("Acme")
+                .yearsOfExperience(8)
+                .expertiseAreas("Distributed Systems")
+                .maxMentees(3)
+                .verificationStatus(MentorVerificationStatus.SUSPENDED)
+                .isActive(false)
+                .rejectionReason("Policy violation")
+                .build();
+
+        when(mentorProfileRepository.findById(42L)).thenReturn(Optional.of(suspended));
+        when(mentorProfileRepository.save(any(MentorProfile.class))).thenAnswer(i -> i.getArgument(0));
+
+        MentorProfileDto result = mentorProfileService.reactivateMentor(42L);
+
+        assertEquals(MentorVerificationStatus.APPROVED, result.getVerificationStatus());
+        assertTrue(result.isActive());
+        assertNull(result.getRejectionReason());
+    }
+
+    @Test
+    @DisplayName("Reactivating a non-suspended mentor throws IllegalStateException")
+    void testReactivateMentor_NotSuspended_ThrowsException() {
+        when(mentorProfileRepository.findById(approvedMentor.getId())).thenReturn(Optional.of(approvedMentor));
+
+        assertThrows(IllegalStateException.class, () ->
+                mentorProfileService.reactivateMentor(approvedMentor.getId()));
     }
 
     @Test

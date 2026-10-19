@@ -37,6 +37,9 @@ public class MentorProfileUpdateDto {
     @Size(max = 255, message = "GitHub URL cannot exceed 255 characters")
     private String githubUrl;
 
+    @Size(max = 255, message = "Coding profile URL cannot exceed 255 characters")
+    private String codingProfileUrl;
+
     @Size(max = 255, message = "Portfolio URL cannot exceed 255 characters")
     private String portfolioUrl;
 

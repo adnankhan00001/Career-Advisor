@@ -40,6 +40,7 @@ public class MentorProfileDto {
     private String rejectionReason;
     private String linkedinUrl;
     private String githubUrl;
+    private String codingProfileUrl;
     private String portfolioUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

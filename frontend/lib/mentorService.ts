@@ -12,8 +12,9 @@ export interface MentorApplicationDto {
   bio?: string;
   expertiseAreas: string;
   maxMentees?: number;
-  linkedinUrl?: string;
-  githubUrl?: string;
+  linkedinUrl: string;
+  githubUrl: string;
+  codingProfileUrl: string;
   portfolioUrl?: string;
 }
 
@@ -26,6 +27,7 @@ export interface MentorProfileUpdateDto {
   maxMentees?: number;
   linkedinUrl?: string;
   githubUrl?: string;
+  codingProfileUrl?: string;
   portfolioUrl?: string;
   isActive?: boolean;
 }
@@ -49,6 +51,7 @@ export interface MentorProfileDto {
   rejectionReason: string | null;
   linkedinUrl: string | null;
   githubUrl: string | null;
+  codingProfileUrl: string | null;
   portfolioUrl: string | null;
   createdAt: string;
   updatedAt: string;
@@ -63,6 +66,9 @@ export interface MentorshipRequestDto {
   studentId: number;
   studentName: string;
   studentEmail: string;
+  studentCareerGoal?: string | null;
+  studentUserLevel?: string | null;
+  studentSkills?: string[];
   mentorProfileId: number;
   mentorUserId: number;
   mentorName: string;
@@ -238,6 +244,12 @@ export const mentorService = {
     return apiRequest<MentorProfileDto>(API_ENDPOINTS.MENTORS.ADMIN.SUSPEND(mentorId), {
       method: "PATCH",
       ...(body ? { body } : {}),
+    });
+  },
+
+  async reactivateMentor(mentorId: number | string): Promise<MentorProfileDto> {
+    return apiRequest<MentorProfileDto>(API_ENDPOINTS.MENTORS.ADMIN.REACTIVATE(mentorId), {
+      method: "PATCH",
     });
   },
 

@@ -42,8 +42,47 @@ public class MentorProfileService {
         if (userId == null) {
             throw new IllegalArgumentException("User ID is required");
         }
-        if (mentorProfileRepository.existsByUserId(userId)) {
-            throw new DuplicateResourceException("You have already submitted a mentor application or have an existing mentor profile");
+
+        java.util.Optional<MentorProfile> existingOpt = mentorProfileRepository.findByUserId(userId);
+        if (existingOpt.isPresent()) {
+            MentorProfile existing = existingOpt.get();
+            if (existing.getVerificationStatus() != MentorVerificationStatus.REJECTED) {
+                if (existing.getVerificationStatus() == MentorVerificationStatus.APPLIED) {
+                    throw new DuplicateResourceException("You have already submitted a mentor application that is pending review");
+                } else if (existing.getVerificationStatus() == MentorVerificationStatus.APPROVED) {
+                    throw new DuplicateResourceException("You already have an approved mentor profile");
+                } else if (existing.getVerificationStatus() == MentorVerificationStatus.SUSPENDED) {
+                    throw new DuplicateResourceException("Your mentor profile is currently suspended. Please contact administration for reactivation");
+                } else {
+                    throw new DuplicateResourceException("You already have an existing mentor profile");
+                }
+            }
+
+            // User was REJECTED: allow re-application by updating the existing profile
+            validateUrl(dto.getLinkedinUrl(), "LinkedIn");
+            validateUrl(dto.getGithubUrl(), "GitHub");
+            validateUrl(dto.getCodingProfileUrl(), "Coding profile");
+            validateUrl(dto.getPortfolioUrl(), "Portfolio");
+
+            int resolvedMaxMentees = capacityConfigService.validateAndResolveCapacity(dto.getMaxMentees());
+
+            existing.setJobTitle(dto.getJobTitle().trim());
+            existing.setCompany(dto.getCompany().trim());
+            existing.setYearsOfExperience(dto.getYearsOfExperience());
+            existing.setBio(dto.getBio() != null ? dto.getBio().trim() : null);
+            existing.setExpertiseAreas(dto.getExpertiseAreas().trim());
+            existing.setMaxMentees(resolvedMaxMentees);
+            existing.setLinkedinUrl(dto.getLinkedinUrl() != null ? dto.getLinkedinUrl().trim() : null);
+            existing.setGithubUrl(dto.getGithubUrl() != null ? dto.getGithubUrl().trim() : null);
+            existing.setCodingProfileUrl(dto.getCodingProfileUrl() != null ? dto.getCodingProfileUrl().trim() : null);
+            existing.setPortfolioUrl(dto.getPortfolioUrl() != null ? dto.getPortfolioUrl().trim() : null);
+            existing.setVerificationStatus(MentorVerificationStatus.APPLIED);
+            existing.setActive(true);
+            existing.setRejectionReason(null);
+            existing.setUpdatedAt(java.time.LocalDateTime.now());
+
+            MentorProfile saved = mentorProfileRepository.save(existing);
+            return mapToDto(saved);
         }
 
         User user = userRepository.findById(userId)
@@ -51,6 +90,7 @@ public class MentorProfileService {
 
         validateUrl(dto.getLinkedinUrl(), "LinkedIn");
         validateUrl(dto.getGithubUrl(), "GitHub");
+        validateUrl(dto.getCodingProfileUrl(), "Coding profile");
         validateUrl(dto.getPortfolioUrl(), "Portfolio");
 
         int resolvedMaxMentees = capacityConfigService.validateAndResolveCapacity(dto.getMaxMentees());
@@ -65,6 +105,7 @@ public class MentorProfileService {
                 .maxMentees(resolvedMaxMentees)
                 .linkedinUrl(dto.getLinkedinUrl() != null ? dto.getLinkedinUrl().trim() : null)
                 .githubUrl(dto.getGithubUrl() != null ? dto.getGithubUrl().trim() : null)
+                .codingProfileUrl(dto.getCodingProfileUrl() != null ? dto.getCodingProfileUrl().trim() : null)
                 .portfolioUrl(dto.getPortfolioUrl() != null ? dto.getPortfolioUrl().trim() : null)
                 .verificationStatus(MentorVerificationStatus.APPLIED)
                 .isActive(true)
@@ -115,6 +156,10 @@ public class MentorProfileService {
         if (dto.getGithubUrl() != null) {
             validateUrl(dto.getGithubUrl(), "GitHub");
             profile.setGithubUrl(dto.getGithubUrl().trim());
+        }
+        if (dto.getCodingProfileUrl() != null) {
+            validateUrl(dto.getCodingProfileUrl(), "Coding profile");
+            profile.setCodingProfileUrl(dto.getCodingProfileUrl().trim());
         }
         if (dto.getPortfolioUrl() != null) {
             validateUrl(dto.getPortfolioUrl(), "Portfolio");
@@ -229,6 +274,33 @@ public class MentorProfileService {
         return mapToDto(saved);
     }
 
+    @Transactional
+    public MentorProfileDto reactivateMentor(Long mentorId) {
+        MentorProfile profile = mentorProfileRepository.findById(mentorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mentor profile not found with id: " + mentorId));
+
+        if (profile.getVerificationStatus() != MentorVerificationStatus.SUSPENDED) {
+            throw new IllegalStateException("Only suspended mentors can be reactivated. Current status: " + profile.getVerificationStatus());
+        }
+
+        if (profile.getJobTitle() == null || profile.getJobTitle().trim().isEmpty() ||
+            profile.getCompany() == null || profile.getCompany().trim().isEmpty() ||
+            profile.getExpertiseAreas() == null || profile.getExpertiseAreas().trim().isEmpty()) {
+            throw new IllegalStateException("Cannot reactivate mentor with incomplete profile details");
+        }
+
+        int resolvedCapacity = capacityConfigService.validateAndResolveCapacity(profile.getMaxMentees());
+        profile.setMaxMentees(resolvedCapacity);
+
+        profile.setVerificationStatus(MentorVerificationStatus.APPROVED);
+        profile.setActive(true);
+        profile.setRejectionReason(null);
+        profile.setUpdatedAt(java.time.LocalDateTime.now());
+
+        MentorProfile saved = mentorProfileRepository.save(profile);
+        return mapToDto(saved);
+    }
+
     public MentorProfileDto mapToDto(MentorProfile profile) {
         long activeCount = mentorshipRequestRepository.countByMentorIdAndStatus(profile.getId(), MentorshipRequestStatus.ACCEPTED);
         int max = profile.getMaxMentees() != null ? profile.getMaxMentees() : 3;
@@ -252,6 +324,7 @@ public class MentorProfileService {
                 .rejectionReason(profile.getRejectionReason())
                 .linkedinUrl(profile.getLinkedinUrl())
                 .githubUrl(profile.getGithubUrl())
+                .codingProfileUrl(profile.getCodingProfileUrl())
                 .portfolioUrl(profile.getPortfolioUrl())
                 .createdAt(profile.getCreatedAt())
                 .updatedAt(profile.getUpdatedAt())

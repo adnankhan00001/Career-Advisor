@@ -75,6 +75,12 @@ public class AdminMentorController {
         return ResponseEntity.ok(suspended);
     }
 
+    @PatchMapping("/{mentorId}/reactivate")
+    public ResponseEntity<MentorProfileDto> reactivateMentor(@PathVariable Long mentorId) {
+        MentorProfileDto reactivated = mentorProfileService.reactivateMentor(mentorId);
+        return ResponseEntity.ok(reactivated);
+    }
+
     @GetMapping("/config")
     public ResponseEntity<MentorshipCapacityConfigDto> getCapacityConfig() {
         return ResponseEntity.ok(capacityConfigService.getConfig());

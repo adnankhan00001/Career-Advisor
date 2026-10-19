@@ -172,4 +172,22 @@ class AdminMentorControllerTests {
                 .andExpect(jsonPath("$.maxMentees").value(8))
                 .andExpect(jsonPath("$.defaultMentees").value(4));
     }
+
+    @Test
+    @DisplayName("PATCH /api/admin/mentors/{mentorId}/reactivate reactivates suspended mentor")
+    void testReactivateMentor() throws Exception {
+        MentorProfileDto reactivated = MentorProfileDto.builder()
+                .id(15L)
+                .name("Candidate Dev")
+                .verificationStatus(MentorVerificationStatus.APPROVED)
+                .isActive(true)
+                .build();
+
+        when(mentorProfileService.reactivateMentor(eq(15L))).thenReturn(reactivated);
+
+        mockMvc.perform(patch("/api/admin/mentors/15/reactivate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verificationStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.active").value(true));
+    }
 }

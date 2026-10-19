@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -18,6 +19,9 @@ public class MentorshipRequestDto {
     private Long studentId;
     private String studentName;
     private String studentEmail;
+    private String studentCareerGoal;
+    private String studentUserLevel;
+    private List<String> studentSkills;
     private Long mentorProfileId;
     private Long mentorUserId;
     private String mentorName;

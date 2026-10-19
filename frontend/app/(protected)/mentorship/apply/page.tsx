@@ -30,6 +30,7 @@ export default function MentorApplicationPage() {
   const [bio, setBio] = useState<string>("");
   const [linkedinUrl, setLinkedinUrl] = useState<string>("");
   const [githubUrl, setGithubUrl] = useState<string>("");
+  const [codingProfileUrl, setCodingProfileUrl] = useState<string>("");
   const [portfolioUrl, setPortfolioUrl] = useState<string>("");
 
   // Submission state
@@ -46,6 +47,20 @@ export default function MentorApplicationPage() {
     try {
       const profile = await mentorService.getMyProfile();
       setExistingProfile(profile);
+
+      // If previous application was rejected, prefill the form so applicant can update & reapply
+      if (profile.verificationStatus === "REJECTED") {
+        setJobTitle(profile.jobTitle || "");
+        setCompany(profile.company || "");
+        setYearsOfExperience(profile.yearsOfExperience != null ? String(profile.yearsOfExperience) : "");
+        setExpertiseAreas(profile.expertiseAreas || "");
+        setMaxMentees(profile.maxMentees || 3);
+        setBio(profile.bio || "");
+        setLinkedinUrl(profile.linkedinUrl || "");
+        setGithubUrl(profile.githubUrl || "");
+        setCodingProfileUrl(profile.codingProfileUrl || "");
+        setPortfolioUrl(profile.portfolioUrl || "");
+      }
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 404) {
         // HTTP 404 indicates user has not yet submitted an application
@@ -105,7 +120,18 @@ export default function MentorApplicationPage() {
       errors.bio = "Bio cannot exceed 2000 characters.";
     }
 
-    const validateUrlField = (val: string, fieldName: string, label: string) => {
+    const validateRequiredUrlField = (val: string, fieldName: string, label: string) => {
+      const trimmed = val.trim();
+      if (!trimmed) {
+        errors[fieldName] = `${label} is required.`;
+      } else if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+        errors[fieldName] = `${label} must start with http:// or https://`;
+      } else if (trimmed.length > 255) {
+        errors[fieldName] = `${label} cannot exceed 255 characters.`;
+      }
+    };
+
+    const validateOptionalUrlField = (val: string, fieldName: string, label: string) => {
       const trimmed = val.trim();
       if (trimmed) {
         if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
@@ -116,9 +142,10 @@ export default function MentorApplicationPage() {
       }
     };
 
-    validateUrlField(linkedinUrl, "linkedinUrl", "LinkedIn URL");
-    validateUrlField(githubUrl, "githubUrl", "GitHub URL");
-    validateUrlField(portfolioUrl, "portfolioUrl", "Portfolio / Coding Profile URL");
+    validateRequiredUrlField(linkedinUrl, "linkedinUrl", "LinkedIn profile URL");
+    validateRequiredUrlField(githubUrl, "githubUrl", "GitHub profile URL");
+    validateRequiredUrlField(codingProfileUrl, "codingProfileUrl", "Coding practice profile URL");
+    validateOptionalUrlField(portfolioUrl, "portfolioUrl", "Portfolio / personal website URL");
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -145,8 +172,9 @@ export default function MentorApplicationPage() {
       expertiseAreas: cleanedExpertise,
       maxMentees: Number(maxMentees) || 3,
       bio: bio.trim() || undefined,
-      linkedinUrl: linkedinUrl.trim() || undefined,
-      githubUrl: githubUrl.trim() || undefined,
+      linkedinUrl: linkedinUrl.trim(),
+      githubUrl: githubUrl.trim(),
+      codingProfileUrl: codingProfileUrl.trim(),
       portfolioUrl: portfolioUrl.trim() || undefined,
     };
 
@@ -156,7 +184,9 @@ export default function MentorApplicationPage() {
       const created = await mentorService.apply(payload);
       setExistingProfile(created);
       setSuccessBanner(
-        "Your mentor application has been submitted successfully! It is now pending administrative review."
+        existingProfile?.verificationStatus === "REJECTED"
+          ? "Your updated application has been submitted successfully and is now under administrative review."
+          : "Your mentor application has been submitted successfully! It is now pending administrative review."
       );
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
@@ -200,12 +230,11 @@ export default function MentorApplicationPage() {
   }
 
   // ------------------------------------------------------------------
-  // RENDER: EXISTING APPLICATION VIEWS (APPLIED / APPROVED / REJECTED / SUSPENDED)
+  // RENDER: EXISTING APPLICATION VIEWS (APPLIED / APPROVED / SUSPENDED)
   // ------------------------------------------------------------------
-  if (existingProfile) {
+  if (existingProfile && existingProfile.verificationStatus !== "REJECTED") {
     const isApplied = existingProfile.verificationStatus === "APPLIED";
     const isApproved = existingProfile.verificationStatus === "APPROVED";
-    const isRejected = existingProfile.verificationStatus === "REJECTED";
     const isSuspended = existingProfile.verificationStatus === "SUSPENDED";
     const tags = parseExpertiseAreas(existingProfile.expertiseAreas);
 
@@ -255,12 +284,6 @@ export default function MentorApplicationPage() {
                   <span>Approved & Active Mentor</span>
                 </span>
               )}
-              {isRejected && (
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 shadow-xs">
-                  <span>❌</span>
-                  <span>Application Not Approved</span>
-                </span>
-              )}
               {isSuspended && (
                 <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-gray-100 text-gray-800 border border-gray-300 shadow-xs">
                   <span>⚠️</span>
@@ -288,30 +311,7 @@ export default function MentorApplicationPage() {
               <p className="font-bold">Congratulations!</p>
               <p className="leading-relaxed">
                 Your mentor application has been approved. You are actively discoverable by students seeking
-                guidance in your areas of expertise. Your mentor management dashboard for reviewing incoming
-                requests is scheduled for Phase 3B.4.2.
-              </p>
-            </div>
-          )}
-
-          {isRejected && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2">
-                <p className="font-bold">Application Feedback</p>
-                <p className="leading-relaxed">
-                  Thank you for your interest in mentoring. After reviewing your application, our administrative
-                  team was unable to approve your mentor profile at this time.
-                </p>
-                {existingProfile.rejectionReason && (
-                  <div className="mt-2 p-3 rounded-lg bg-white/80 border border-rose-200 text-rose-950 font-medium">
-                    <span className="font-bold block mb-0.5">Admin Note:</span>
-                    {existingProfile.rejectionReason}
-                  </div>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-500">
-                Note: In accordance with current platform policy, rejected profiles cannot be resubmitted directly.
-                Please contact support if you believe this decision was made in error.
+                guidance in your areas of expertise. Manage incoming requests anytime from your mentor dashboard.
               </p>
             </div>
           )}
@@ -411,6 +411,20 @@ export default function MentorApplicationPage() {
                   <span className="text-gray-400">GitHub: Not provided</span>
                 )}
 
+                {existingProfile.codingProfileUrl ? (
+                  <a
+                    href={existingProfile.codingProfileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-700 hover:underline flex items-center gap-1"
+                  >
+                    <span>⚡</span>
+                    <span>Coding Profile</span>
+                  </a>
+                ) : (
+                  <span className="text-gray-400">Coding Profile: Not provided</span>
+                )}
+
                 {existingProfile.portfolioUrl ? (
                   <a
                     href={existingProfile.portfolioUrl}
@@ -470,7 +484,9 @@ export default function MentorApplicationPage() {
         <div className="flex items-center gap-2.5">
           <span className="text-2xl">✨</span>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-            Apply to Become a Mentor
+            {existingProfile?.verificationStatus === "REJECTED"
+              ? "Update & Resubmit Mentor Application"
+              : "Apply to Become a Mentor"}
           </h1>
         </div>
         <p className="text-sm text-gray-600 max-w-2xl leading-relaxed">
@@ -478,6 +494,25 @@ export default function MentorApplicationPage() {
           next generation of tech talent. All mentor applications undergo administrative review.
         </p>
       </div>
+
+      {/* Reapplication Banner for Previously Rejected Applicants */}
+      {existingProfile?.verificationStatus === "REJECTED" && (
+        <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2.5">
+          <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
+            <span>⚠️</span>
+            <span>Previous Application Status: Rejected</span>
+          </div>
+          {existingProfile.rejectionReason && (
+            <div className="p-3.5 bg-white/90 rounded-xl border border-amber-200 text-xs">
+              <span className="font-semibold text-gray-700 block mb-1">Feedback from Administrator:</span>
+              <p className="text-gray-900 leading-relaxed font-medium">{existingProfile.rejectionReason}</p>
+            </div>
+          )}
+          <p className="text-xs text-amber-900 leading-relaxed">
+            Please address the constructive feedback above by updating your experience, expertise, or required profile URLs below, then submit your updated application for administrative review.
+          </p>
+        </div>
+      )}
 
       {/* Global Status Error */}
       {statusError && (
@@ -778,12 +813,14 @@ export default function MentorApplicationPage() {
           <div className="space-y-4">
             {/* LinkedIn */}
             <div className="space-y-1.5">
-              <label htmlFor="linkedinUrl" className="text-xs font-bold text-gray-800">
-                LinkedIn Profile URL
+              <label htmlFor="linkedinUrl" className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                <span>LinkedIn Profile URL</span>
+                <span className="text-red-500">*</span>
               </label>
               <input
                 id="linkedinUrl"
                 type="url"
+                required
                 maxLength={255}
                 placeholder="https://linkedin.com/in/username"
                 value={linkedinUrl}
@@ -808,12 +845,14 @@ export default function MentorApplicationPage() {
 
             {/* GitHub */}
             <div className="space-y-1.5">
-              <label htmlFor="githubUrl" className="text-xs font-bold text-gray-800">
-                GitHub Profile URL
+              <label htmlFor="githubUrl" className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                <span>GitHub Profile URL</span>
+                <span className="text-red-500">*</span>
               </label>
               <input
                 id="githubUrl"
                 type="url"
+                required
                 maxLength={255}
                 placeholder="https://github.com/username"
                 value={githubUrl}
@@ -836,16 +875,52 @@ export default function MentorApplicationPage() {
               )}
             </div>
 
-            {/* Portfolio / Coding Profile URL */}
+            {/* Coding Profile URL */}
+            <div className="space-y-1.5">
+              <label htmlFor="codingProfileUrl" className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                <span>Coding Practice Profile URL</span>
+                <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="codingProfileUrl"
+                type="url"
+                required
+                maxLength={255}
+                placeholder="https://leetcode.com/username or https://hackerrank.com/username"
+                value={codingProfileUrl}
+                onChange={(e) => {
+                  setCodingProfileUrl(e.target.value);
+                  if (validationErrors.codingProfileUrl) {
+                    setValidationErrors((prev) => ({ ...prev, codingProfileUrl: "" }));
+                  }
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border transition text-gray-900 bg-white placeholder:text-gray-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 ${
+                  validationErrors.codingProfileUrl
+                    ? "border-rose-400 focus:border-rose-500"
+                    : "border-gray-300 focus:border-indigo-600"
+                }`}
+              />
+              {validationErrors.codingProfileUrl ? (
+                <p className="text-[11px] text-rose-600 font-medium">
+                  {validationErrors.codingProfileUrl}
+                </p>
+              ) : (
+                <p className="text-[11px] text-gray-400">
+                  Required coding-practice profile (e.g. LeetCode, HackerRank, Codeforces, Kaggle, CodeChef).
+                </p>
+              )}
+            </div>
+
+            {/* Portfolio / Personal Website */}
             <div className="space-y-1.5">
               <label htmlFor="portfolioUrl" className="text-xs font-bold text-gray-800">
-                Portfolio, Website, or Coding Profile URL
+                Portfolio or Personal Website (Optional)
               </label>
               <input
                 id="portfolioUrl"
                 type="url"
                 maxLength={255}
-                placeholder="https://yourportfolio.com or https://leetcode.com/username"
+                placeholder="https://yourportfolio.com"
                 value={portfolioUrl}
                 onChange={(e) => {
                   setPortfolioUrl(e.target.value);
@@ -865,8 +940,7 @@ export default function MentorApplicationPage() {
                 </p>
               ) : (
                 <p className="text-[11px] text-gray-400">
-                  Optional link to personal website, engineering blog, or coding practice profile
-                  (e.g. LeetCode, Codeforces, HackerRank).
+                  Optional link to personal portfolio, engineering blog, or technical showcase.
                 </p>
               )}
             </div>
@@ -890,10 +964,18 @@ export default function MentorApplicationPage() {
             {isSubmitting ? (
               <>
                 <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Submitting Application...</span>
+                <span>
+                  {existingProfile?.verificationStatus === "REJECTED"
+                    ? "Submitting Reapplication..."
+                    : "Submitting Application..."}
+                </span>
               </>
             ) : (
-              <span>Submit Mentor Application</span>
+              <span>
+                {existingProfile?.verificationStatus === "REJECTED"
+                  ? "Submit Reapplication"
+                  : "Submit Mentor Application"}
+              </span>
             )}
           </button>
         </div>
