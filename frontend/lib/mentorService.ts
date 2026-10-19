@@ -45,6 +45,7 @@ export interface MentorProfileDto {
   availableSlots: number;
   verificationStatus: MentorVerificationStatus;
   isActive: boolean;
+  active?: boolean;
   rejectionReason: string | null;
   linkedinUrl: string | null;
   githubUrl: string | null;

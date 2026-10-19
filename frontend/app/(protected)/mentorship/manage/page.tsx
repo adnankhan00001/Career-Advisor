@@ -747,7 +747,7 @@ export default function MentorManageDashboardPage() {
                       {isAccepted && (
                         <>
                           <Link
-                            href="/messages"
+                            href={req.conversationId ? `/messages?convId=${req.conversationId}` : "/messages"}
                             className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition flex items-center gap-1.5 shadow-xs"
                           >
                             <span>💬</span>

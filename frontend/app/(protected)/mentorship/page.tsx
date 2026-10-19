@@ -47,6 +47,12 @@ export default function MentorshipHubPage() {
   const [cancellingRequestId, setCancellingRequestId] = useState<number | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
+  // Complete mentorship modal state
+  const [completeModalRequest, setCompleteModalRequest] = useState<MentorshipRequestDto | null>(null);
+  const [completeNote, setCompleteNote] = useState<string>("");
+  const [isCompleting, setIsCompleting] = useState<boolean>(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+
   // Info modal state (for Apply / Dashboard navigation notices)
   const [infoModal, setInfoModal] = useState<{
     title: string;
@@ -270,6 +276,42 @@ export default function MentorshipHubPage() {
       }
     } finally {
       setCancellingRequestId(null);
+    }
+  };
+
+  // Handle completing an accepted mentorship
+  const handleCompleteMentorship = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!completeModalRequest) return;
+
+    setIsCompleting(true);
+    setCompleteError(null);
+
+    try {
+      const updated = await mentorService.completeMentorship(
+        completeModalRequest.id,
+        completeNote.trim() || undefined
+      );
+      setSentRequests((prev) =>
+        prev.map((r) => (r.id === completeModalRequest.id ? updated : r))
+      );
+      setSuccessBanner(
+        `Mentorship with ${completeModalRequest.mentorName} marked as completed. Thank you for participating!`
+      );
+      setCompleteModalRequest(null);
+      setCompleteNote("");
+
+      // Refresh mentors list to reflect recycled capacity
+      const refreshedMentors = await mentorService.getApprovedMentors();
+      setApprovedMentors(refreshedMentors);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setCompleteError(err.message || "Failed to complete mentorship.");
+      } else {
+        setCompleteError("An unexpected network error occurred while completing mentorship.");
+      }
+    } finally {
+      setIsCompleting(false);
     }
   };
 
@@ -718,13 +760,25 @@ export default function MentorshipHubPage() {
                       )}
 
                       {req.status === "ACCEPTED" && (
-                        <Link
-                          href="/messages"
-                          className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center gap-1.5 shadow-xs"
-                        >
-                          <span>💬</span>
-                          <span>Open Messages</span>
-                        </Link>
+                        <>
+                          <Link
+                            href={req.conversationId ? `/messages?convId=${req.conversationId}` : "/messages"}
+                            className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center gap-1.5 shadow-xs"
+                          >
+                            <span>💬</span>
+                            <span>Open Messages</span>
+                          </Link>
+                          <button
+                            onClick={() => {
+                              setCompleteModalRequest(req);
+                              setCompleteNote("");
+                              setCompleteError(null);
+                            }}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition cursor-pointer"
+                          >
+                            Complete Mentorship
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -871,6 +925,123 @@ export default function MentorshipHubPage() {
                     </>
                   ) : (
                     <span>Submit Request</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* COMPLETE MENTORSHIP MODAL                            */}
+      {/* ---------------------------------------------------- */}
+      {completeModalRequest && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="complete-mentorship-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+          onClick={() => {
+            if (!isCompleting) setCompleteModalRequest(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-200 shadow-2xl p-6 sm:p-8 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Conclude Mentorship
+                </span>
+                <h2 id="complete-mentorship-title" className="text-lg font-bold text-gray-900">
+                  Complete Mentorship with {completeModalRequest.mentorName}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  {completeModalRequest.mentorJobTitle} • {completeModalRequest.mentorCompany}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCompleteModalRequest(null)}
+                disabled={isCompleting}
+                aria-label="Close complete mentorship modal"
+                className="w-8 h-8 rounded-full bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200 flex items-center justify-center text-sm font-bold transition disabled:opacity-50 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Informational Guidance */}
+            <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 space-y-2 text-xs text-indigo-950">
+              <div className="flex items-center gap-2 font-semibold">
+                <span>🎓</span>
+                <span>Conclude Mentorship Relationship</span>
+              </div>
+              <p className="leading-relaxed">
+                Completing this mentorship marks your goal as accomplished and recycles the mentor&apos;s
+                active mentee capacity. Your direct messaging thread and conversation history with{" "}
+                <strong>{completeModalRequest.mentorName}</strong> will remain permanently accessible in your messages inbox.
+              </p>
+            </div>
+
+            {/* Error Banner */}
+            {completeError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2.5">
+                <span className="text-base shrink-0">⚠️</span>
+                <div className="space-y-0.5">
+                  <span className="font-semibold block">Failed to complete mentorship</span>
+                  <span>{completeError}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleCompleteMentorship} className="space-y-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="completionNote"
+                  className="block text-xs font-semibold text-gray-700"
+                >
+                  Completion Note or Feedback (Optional)
+                </label>
+                <textarea
+                  id="completionNote"
+                  rows={3}
+                  maxLength={1000}
+                  value={completeNote}
+                  onChange={(e) => setCompleteNote(e.target.value)}
+                  placeholder="Share a brief thank-you note, milestone summary, or feedback on what you accomplished together..."
+                  className="w-full p-3 rounded-xl text-xs sm:text-sm border border-gray-300 bg-white focus:outline-hidden focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition text-gray-900 placeholder:text-gray-400 resize-y"
+                />
+                <span className="text-[11px] text-gray-400 block text-right">
+                  {completeNote.length}/1000
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setCompleteModalRequest(null)}
+                  disabled={isCompleting}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl text-gray-700 bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCompleting}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-xs"
+                >
+                  {isCompleting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Completing...</span>
+                    </>
+                  ) : (
+                    <span>Confirm Completion</span>
                   )}
                 </button>
               </div>
@@ -1044,7 +1215,7 @@ function MentorCard({
             </div>
           ) : isAccepted ? (
             <Link
-              href="/messages"
+              href={existingRequest?.conversationId ? `/messages?convId=${existingRequest.conversationId}` : "/messages"}
               className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 transition shadow-xs truncate"
             >
               <span>💬</span>

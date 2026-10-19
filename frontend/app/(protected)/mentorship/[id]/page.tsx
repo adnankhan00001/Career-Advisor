@@ -268,7 +268,7 @@ export default function IndividualMentorProfilePage({ params }: MentorProfilePag
               </span>
             ) : isAccepted ? (
               <Link
-                href="/messages"
+                href={existingRequest?.conversationId ? `/messages?convId=${existingRequest.conversationId}` : "/messages"}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs"
               >
                 <span>💬</span>

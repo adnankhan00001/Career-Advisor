@@ -88,7 +88,7 @@ export function rankMentors(
 
   for (const mentor of mentors) {
     // Only approved and active mentors should be recommended
-    if (mentor.verificationStatus !== "APPROVED" || mentor.isActive === false) {
+    if (mentor.verificationStatus !== "APPROVED" || mentor.isActive === false || mentor.active === false) {
       continue;
     }
 

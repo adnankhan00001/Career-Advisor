@@ -40,5 +40,13 @@ public class MentorProfileUpdateDto {
     @Size(max = 255, message = "Portfolio URL cannot exceed 255 characters")
     private String portfolioUrl;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("isActive")
     private Boolean isActive;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("active")
+    public void setActiveAlias(Boolean active) {
+        if (active != null) {
+            this.isActive = active;
+        }
+    }
 }

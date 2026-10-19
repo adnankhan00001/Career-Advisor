@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   humanChatService,
@@ -19,8 +20,10 @@ import {
 import { webrtcManager } from "@/lib/webrtcService";
 import CallOverlay from "@/components/CallOverlay";
 
-export default function MessagesPage() {
+function MessagesContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const convParam = searchParams.get("convId") || searchParams.get("conversationId");
 
   const [conversations, setConversations] = useState<HumanConversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<number | null>(null);
@@ -81,7 +84,10 @@ export default function MessagesPage() {
       setLoading(true);
       const data = await humanChatService.getHumanConversations();
       setConversations(data);
-      if (data.length > 0 && activeConvId === null) {
+      const targetId = convParam ? Number(convParam) : null;
+      if (targetId && !isNaN(targetId) && data.some((c) => c.id === targetId)) {
+        setActiveConvId(targetId);
+      } else if (data.length > 0 && activeConvId === null) {
         setActiveConvId(data[0].id);
       }
     } catch {
@@ -89,7 +95,17 @@ export default function MessagesPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeConvId]);
+  }, [activeConvId, convParam]);
+
+  // Deep-link to conversation when convParam is present or changes
+  useEffect(() => {
+    if (convParam) {
+      const num = Number(convParam);
+      if (!isNaN(num) && num > 0) {
+        setActiveConvId(num);
+      }
+    }
+  }, [convParam]);
 
   useEffect(() => {
     loadConversations();
@@ -1090,5 +1106,19 @@ export default function MessagesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-[calc(100vh-8.5rem)] flex items-center justify-center bg-white rounded-2xl border border-gray-200 shadow-sm">
+          <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <MessagesContent />
+    </Suspense>
   );
 }
