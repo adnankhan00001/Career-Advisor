@@ -461,6 +461,94 @@ class MentorshipServiceTests {
     }
 
     @Test
+    @DisplayName("Cancel request fails with AccessDeniedException if caller is not the requesting student")
+    void testCancelRequest_UnauthorizedCaller_ThrowsAccessDenied() {
+        MentorshipRequest pending = MentorshipRequest.builder()
+                .id(501L)
+                .student(studentUser)
+                .mentor(approvedMentor)
+                .status(MentorshipRequestStatus.PENDING)
+                .build();
+
+        when(mentorshipRequestRepository.findById(501L)).thenReturn(Optional.of(pending));
+
+        assertThrows(AccessDeniedException.class, () ->
+                mentorshipRequestService.cancelRequest(999L, 501L));
+    }
+
+    @Test
+    @DisplayName("Accept request fails with IllegalStateException if request is not PENDING")
+    void testAcceptRequest_NotPending_ThrowsIllegalStateException() {
+        MentorshipRequest alreadyAccepted = MentorshipRequest.builder()
+                .id(501L)
+                .student(studentUser)
+                .mentor(approvedMentor)
+                .status(MentorshipRequestStatus.ACCEPTED)
+                .build();
+
+        when(mentorshipRequestRepository.findById(501L)).thenReturn(Optional.of(alreadyAccepted));
+
+        assertThrows(IllegalStateException.class, () ->
+                mentorshipRequestService.acceptRequest(mentorUser.getId(), 501L, "Note"));
+    }
+
+    @Test
+    @DisplayName("Accept request fails with IllegalStateException if mentor profile is SUSPENDED")
+    void testAcceptRequest_SuspendedMentor_ThrowsIllegalStateException() {
+        MentorProfile suspended = MentorProfile.builder()
+                .id(approvedMentor.getId())
+                .user(mentorUser)
+                .verificationStatus(MentorVerificationStatus.SUSPENDED)
+                .isActive(false)
+                .build();
+
+        MentorshipRequest pending = MentorshipRequest.builder()
+                .id(500L)
+                .student(studentUser)
+                .mentor(suspended)
+                .status(MentorshipRequestStatus.PENDING)
+                .build();
+
+        when(mentorshipRequestRepository.findById(500L)).thenReturn(Optional.of(pending));
+        when(mentorProfileRepository.findByIdWithLock(suspended.getId())).thenReturn(Optional.of(suspended));
+
+        assertThrows(IllegalStateException.class, () ->
+                mentorshipRequestService.acceptRequest(mentorUser.getId(), 500L, "Note"));
+    }
+
+    @Test
+    @DisplayName("Complete mentorship fails with AccessDeniedException if caller is neither student nor mentor")
+    void testCompleteMentorship_NonParticipant_ThrowsAccessDenied() {
+        MentorshipRequest active = MentorshipRequest.builder()
+                .id(502L)
+                .student(studentUser)
+                .mentor(approvedMentor)
+                .status(MentorshipRequestStatus.ACCEPTED)
+                .build();
+
+        when(mentorshipRequestRepository.findById(502L)).thenReturn(Optional.of(active));
+
+        assertThrows(AccessDeniedException.class, () ->
+                mentorshipRequestService.completeMentorship(999L, 502L, "Note"));
+    }
+
+    @Test
+    @DisplayName("Complete mentorship fails with IllegalStateException if request status is not ACCEPTED")
+    void testCompleteMentorship_PendingStatus_ThrowsIllegalStateException() {
+        MentorshipRequest pending = MentorshipRequest.builder()
+                .id(502L)
+                .student(studentUser)
+                .mentor(approvedMentor)
+                .status(MentorshipRequestStatus.PENDING)
+                .build();
+
+        when(mentorshipRequestRepository.findById(502L)).thenReturn(Optional.of(pending));
+
+        assertThrows(IllegalStateException.class, () ->
+                mentorshipRequestService.completeMentorship(mentorUser.getId(), 502L, "Note"));
+    }
+
+    @Test
     @DisplayName("Mentorship capacity config validates min, max, and default boundaries")
     void testCapacityConfig_BoundaryValidation() {
         assertEquals(1, capacityConfigService.getMinMentees());

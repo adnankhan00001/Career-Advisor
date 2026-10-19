@@ -32,6 +32,7 @@ export default function AdminMentorsPage() {
 
   // Loading & Error States
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | "warning";
@@ -60,7 +61,7 @@ export default function AdminMentorsPage() {
   const [isSavingConfig, setIsSavingConfig] = useState<boolean>(false);
   const [configSuccessMsg, setConfigSuccessMsg] = useState<string | null>(null);
 
-  // Route Guard
+  // Client-side Route Guard for ROLE_ADMIN
   useEffect(() => {
     if (!isAuthLoading) {
       if (!isAuthenticated) {
@@ -71,9 +72,23 @@ export default function AdminMentorsPage() {
     }
   }, [isAuthLoading, isAuthenticated, user, router]);
 
+  // Keyboard shortcut: close modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (rejectModalProfile) setRejectModalProfile(null);
+        else if (suspendModalProfile) setSuspendModalProfile(null);
+        else if (inspectModalProfile) setInspectModalProfile(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [rejectModalProfile, suspendModalProfile, inspectModalProfile]);
+
   // Load All Admin Mentor Data
   const loadAdminData = useCallback(async () => {
     setIsLoadingData(true);
+    setLoadError(null);
     setFeedback(null);
     try {
       const [pendingRes, approvedRes, suspendedRes, configRes] = await Promise.allSettled([
@@ -83,38 +98,57 @@ export default function AdminMentorsPage() {
         mentorService.getCapacityConfig(),
       ]);
 
+      let hasAuthError = false;
+      let generalError: string | null = null;
+
       if (pendingRes.status === "fulfilled") {
         setPendingApplications(pendingRes.value);
+      } else {
+        if (pendingRes.reason instanceof ApiError && pendingRes.reason.status === 403) {
+          hasAuthError = true;
+        } else {
+          generalError = pendingRes.reason?.message || "Failed to load pending applications";
+        }
       }
+
       if (approvedRes.status === "fulfilled") {
         setApprovedMentors(approvedRes.value);
+      } else {
+        if (approvedRes.reason instanceof ApiError && approvedRes.reason.status === 403) {
+          hasAuthError = true;
+        } else {
+          generalError = approvedRes.reason?.message || "Failed to load approved mentors";
+        }
       }
+
       if (suspendedRes.status === "fulfilled") {
         setSuspendedMentors(suspendedRes.value);
+      } else {
+        if (suspendedRes.reason instanceof ApiError && suspendedRes.reason.status === 403) {
+          hasAuthError = true;
+        } else {
+          generalError = suspendedRes.reason?.message || "Failed to load suspended mentors";
+        }
       }
+
       if (configRes.status === "fulfilled") {
         setCapacityConfig(configRes.value);
         setCapacityForm(configRes.value);
-      }
-
-      // Check for partial or full failures
-      const anyRejected = [pendingRes, approvedRes, suspendedRes, configRes].find(
-        (r) => r.status === "rejected"
-      );
-      if (anyRejected && anyRejected.status === "rejected") {
-        const reason = anyRejected.reason;
-        if (reason instanceof ApiError && reason.status === 403) {
-          setFeedback({
-            type: "error",
-            message: "Administrator privilege verification failed (HTTP 403 Forbidden).",
-          });
+      } else {
+        if (configRes.reason instanceof ApiError && configRes.reason.status === 403) {
+          hasAuthError = true;
+        } else {
+          generalError = configRes.reason?.message || "Failed to load capacity configuration";
         }
       }
+
+      if (hasAuthError) {
+        setLoadError("Administrator privilege verification failed (HTTP 403 Forbidden). Please ensure your account has administrative authority.");
+      } else if (generalError) {
+        setLoadError(generalError);
+      }
     } catch (err: any) {
-      setFeedback({
-        type: "error",
-        message: err.message || "Failed to load mentorship administration data.",
-      });
+      setLoadError(err.message || "Failed to load mentorship administration data.");
     } finally {
       setIsLoadingData(false);
     }
@@ -137,23 +171,29 @@ export default function AdminMentorsPage() {
   // Capacity validation helpers
   const capacityValidationErrors = useMemo(() => {
     const errors: string[] = [];
-    if (capacityForm.minMentees === undefined || capacityForm.minMentees < 1) {
-      errors.push("Minimum mentees must be at least 1.");
+    const min = Number(capacityForm.minMentees);
+    const max = Number(capacityForm.maxMentees);
+    const def = Number(capacityForm.defaultMentees);
+
+    if (!Number.isInteger(min) || min < 1) {
+      errors.push("Minimum mentees must be an integer of at least 1.");
     }
-    if (
-      capacityForm.maxMentees === undefined ||
-      capacityForm.maxMentees < capacityForm.minMentees
-    ) {
+    if (!Number.isInteger(max) || max < 1) {
+      errors.push("Maximum mentees must be an integer of at least 1.");
+    }
+    if (!Number.isInteger(def) || def < 1) {
+      errors.push("Default mentees must be an integer of at least 1.");
+    }
+    if (Number.isInteger(min) && Number.isInteger(max) && max < min) {
       errors.push("Maximum capacity cannot be less than minimum capacity.");
     }
     if (
-      capacityForm.defaultMentees === undefined ||
-      capacityForm.defaultMentees < capacityForm.minMentees ||
-      capacityForm.defaultMentees > capacityForm.maxMentees
+      Number.isInteger(min) &&
+      Number.isInteger(max) &&
+      Number.isInteger(def) &&
+      (def < min || def > max)
     ) {
-      errors.push(
-        `Default capacity must be between ${capacityForm.minMentees} and ${capacityForm.maxMentees}.`
-      );
+      errors.push(`Default capacity (${def}) must be between minimum (${min}) and maximum (${max}).`);
     }
     return errors;
   }, [capacityForm]);
@@ -238,6 +278,9 @@ export default function AdminMentorsPage() {
       });
       setSuspendModalProfile(null);
       setSuspendReason("");
+      if (inspectModalProfile?.id === suspendModalProfile.id) {
+        setInspectModalProfile(null);
+      }
       await loadAdminData();
     } catch (err: any) {
       setFeedback({
@@ -246,27 +289,6 @@ export default function AdminMentorsPage() {
       });
     } finally {
       setIsSubmittingSuspend(false);
-    }
-  };
-
-  // Reactivate Suspended Mentor Handler
-  const handleReactivateMentor = async (mentorProfileId: number) => {
-    setActionLoadingId(mentorProfileId);
-    setFeedback(null);
-    try {
-      await mentorService.approveApplication(mentorProfileId);
-      setFeedback({
-        type: "success",
-        message: `Mentor #${mentorProfileId} has been reactivated and approved!`,
-      });
-      await loadAdminData();
-    } catch (err: any) {
-      setFeedback({
-        type: "error",
-        message: err?.message || "Failed to reactivate mentor.",
-      });
-    } finally {
-      setActionLoadingId(null);
     }
   };
 
@@ -279,7 +301,11 @@ export default function AdminMentorsPage() {
     setConfigSuccessMsg(null);
     setFeedback(null);
     try {
-      const updated = await mentorService.updateCapacityConfig(capacityForm);
+      const updated = await mentorService.updateCapacityConfig({
+        minMentees: Number(capacityForm.minMentees),
+        maxMentees: Number(capacityForm.maxMentees),
+        defaultMentees: Number(capacityForm.defaultMentees),
+      });
       setCapacityConfig(updated);
       setCapacityForm(updated);
       setConfigSuccessMsg("Mentorship capacity parameters updated successfully.");
@@ -325,7 +351,7 @@ export default function AdminMentorsPage() {
     );
   }, [suspendedMentors, searchQuery]);
 
-  // Render Access Denied / Guard
+  // Render Access Denied / Auth Checking Spinner
   if (isAuthLoading || (user && user.role !== "ADMIN")) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center text-gray-500 gap-3">
@@ -346,7 +372,7 @@ export default function AdminMentorsPage() {
                 Admin Dashboard
               </Link>
               <span>›</span>
-              <span>Mentor Governance</span>
+              <span>Mentor Management</span>
             </div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-bold uppercase tracking-wider">
               <span>🛡️ Platform Governance</span>
@@ -354,10 +380,10 @@ export default function AdminMentorsPage() {
               <span>Phase 3B.5 Mentorship Review</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Mentor Review & Capacity Governance
+              Mentor Management
             </h1>
             <p className="text-gray-300 text-sm max-w-2xl">
-              Inspect candidate mentor applications, enforce verification standards, monitor active capacity, and configure global platform constraints.
+              Review mentor applications, manage verified mentors, and configure mentorship capacity.
             </p>
           </div>
 
@@ -381,7 +407,23 @@ export default function AdminMentorsPage() {
         </div>
       </div>
 
-      {/* Feedback Banner */}
+      {/* Recoverable Loading Error Alert */}
+      {loadError && (
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span>⚠️</span>
+            <p className="font-medium">{loadError}</p>
+          </div>
+          <button
+            onClick={loadAdminData}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Action Feedback Banner */}
       {feedback && (
         <div
           className={`p-4 rounded-2xl border text-sm flex items-start justify-between gap-3 shadow-xs ${
@@ -514,8 +556,10 @@ export default function AdminMentorsPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-gray-200 gap-2 sm:gap-4 overflow-x-auto">
+      <div className="flex border-b border-gray-200 gap-2 sm:gap-4 overflow-x-auto" role="tablist">
         <button
+          role="tab"
+          aria-selected={activeTab === "pending"}
           onClick={() => setActiveTab("pending")}
           className={`pb-3 px-3 text-sm font-bold flex items-center gap-2 border-b-2 transition whitespace-nowrap cursor-pointer ${
             activeTab === "pending"
@@ -536,6 +580,8 @@ export default function AdminMentorsPage() {
         </button>
 
         <button
+          role="tab"
+          aria-selected={activeTab === "approved"}
           onClick={() => setActiveTab("approved")}
           className={`pb-3 px-3 text-sm font-bold flex items-center gap-2 border-b-2 transition whitespace-nowrap cursor-pointer ${
             activeTab === "approved"
@@ -550,6 +596,8 @@ export default function AdminMentorsPage() {
         </button>
 
         <button
+          role="tab"
+          aria-selected={activeTab === "suspended"}
           onClick={() => setActiveTab("suspended")}
           className={`pb-3 px-3 text-sm font-bold flex items-center gap-2 border-b-2 transition whitespace-nowrap cursor-pointer ${
             activeTab === "suspended"
@@ -564,6 +612,8 @@ export default function AdminMentorsPage() {
         </button>
 
         <button
+          role="tab"
+          aria-selected={activeTab === "config"}
           onClick={() => setActiveTab("config")}
           className={`pb-3 px-3 text-sm font-bold flex items-center gap-2 border-b-2 transition whitespace-nowrap cursor-pointer ${
             activeTab === "config"
@@ -576,13 +626,13 @@ export default function AdminMentorsPage() {
       </div>
 
       {/* ======================================================== */}
-      {/* TAB 1: PENDING APPLICATIONS                             */}
+      {/* SECTION A: PENDING APPLICATIONS                         */}
       {/* ======================================================== */}
       {activeTab === "pending" && (
-        <div className="space-y-6">
+        <section aria-labelledby="pending-heading" className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 id="pending-heading" className="text-xl font-bold text-gray-900">
                 Pending Mentor Applications ({pendingApplications.length})
               </h2>
               <p className="text-xs text-gray-500">
@@ -616,7 +666,7 @@ export default function AdminMentorsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-bold text-gray-900">{app.name}</h3>
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        PENDING REVIEW
+                        {app.verificationStatus}
                       </span>
                       <span className="text-xs text-gray-400">
                         Applied {new Date(app.createdAt).toLocaleDateString()}
@@ -659,7 +709,7 @@ export default function AdminMentorsPage() {
                       </div>
                     )}
 
-                    {/* External links preview */}
+                    {/* External links preview safely rendered */}
                     <div className="flex flex-wrap items-center gap-3 pt-1 text-xs font-semibold">
                       {app.linkedinUrl && (
                         <a
@@ -698,12 +748,12 @@ export default function AdminMentorsPage() {
                   </div>
 
                   {/* Right Column: Actions */}
-                  <div className="flex sm:flex-row lg:flex-col items-stretch gap-2 min-w-[160px]">
+                  <div className="flex sm:flex-row lg:flex-col items-stretch gap-2 min-w-[170px]">
                     <button
                       onClick={() => setInspectModalProfile(app)}
                       className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold text-xs transition cursor-pointer text-center"
                     >
-                      Inspect Full Profile
+                      Review Application
                     </button>
                     <button
                       onClick={() => handleApproveApplication(app.id)}
@@ -732,17 +782,17 @@ export default function AdminMentorsPage() {
               ))}
             </div>
           )}
-        </div>
+        </section>
       )}
 
       {/* ======================================================== */}
-      {/* TAB 2: APPROVED MENTORS                                 */}
+      {/* SECTION B: APPROVED MENTORS                             */}
       {/* ======================================================== */}
       {activeTab === "approved" && (
-        <div className="space-y-6">
+        <section aria-labelledby="approved-heading" className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 id="approved-heading" className="text-xl font-bold text-gray-900">
                 Verified Mentors ({approvedMentors.length})
               </h2>
               <p className="text-xs text-gray-500">
@@ -789,13 +839,13 @@ export default function AdminMentorsPage() {
                         <div className="flex items-center gap-2">
                           <h3 className="font-bold text-gray-900 text-base">{mentor.name}</h3>
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                            APPROVED
+                            {mentor.verificationStatus}
                           </span>
                         </div>
                         <p className="text-xs text-gray-600 font-medium">
                           {mentor.jobTitle} at {mentor.company}
                         </p>
-                        <p className="text-[11px] text-gray-400">{mentor.email}</p>
+                        <p className="text-[11px] text-gray-400">{mentor.email} • {mentor.yearsOfExperience} yrs exp</p>
                       </div>
 
                       <div className="text-right">
@@ -840,12 +890,20 @@ export default function AdminMentorsPage() {
 
                   {/* Actions Strip */}
                   <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                    <Link
-                      href={`/mentorship/${mentor.id}`}
-                      className="text-xs font-bold text-purple-700 hover:text-purple-900 hover:underline"
-                    >
-                      Public Profile ↗
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setInspectModalProfile(mentor)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-100 border border-gray-200 transition cursor-pointer"
+                      >
+                        Inspect Dossier
+                      </button>
+                      <Link
+                        href={`/mentorship/${mentor.id}`}
+                        className="text-xs font-bold text-purple-700 hover:text-purple-900 hover:underline"
+                      >
+                        Public Profile ↗
+                      </Link>
+                    </div>
 
                     <div className="flex items-center gap-2">
                       <button
@@ -863,21 +921,21 @@ export default function AdminMentorsPage() {
               ))}
             </div>
           )}
-        </div>
+        </section>
       )}
 
       {/* ======================================================== */}
-      {/* TAB 3: SUSPENDED MENTORS                                */}
+      {/* SECTION C: SUSPENDED MENTORS                            */}
       {/* ======================================================== */}
       {activeTab === "suspended" && (
-        <div className="space-y-6">
+        <section aria-labelledby="suspended-heading" className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 id="suspended-heading" className="text-xl font-bold text-gray-900">
                 Suspended Mentors ({suspendedMentors.length})
               </h2>
               <p className="text-xs text-gray-500">
-                Mentors whose platform credentials and discovery have been suspended by administration.
+                Mentors whose platform credentials and public discovery have been suspended. Note: Reactivation is not supported by backend APIs without re-application or manual database adjustment.
               </p>
             </div>
 
@@ -917,7 +975,7 @@ export default function AdminMentorsPage() {
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-gray-900 text-base">{mentor.name}</h3>
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
-                        SUSPENDED
+                        {mentor.verificationStatus}
                       </span>
                       <span className="text-xs text-gray-400">
                         Updated {new Date(mentor.updatedAt).toLocaleDateString()}
@@ -939,34 +997,31 @@ export default function AdminMentorsPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                     <button
-                      onClick={() => handleReactivateMentor(mentor.id)}
-                      disabled={actionLoadingId === mentor.id}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      onClick={() => setInspectModalProfile(mentor)}
+                      className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold text-xs transition cursor-pointer"
                     >
-                      {actionLoadingId === mentor.id ? (
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <span>🔄</span>
-                      )}
-                      <span>Reactivate / Approve</span>
+                      Inspect Dossier
                     </button>
+                    <span className="text-[11px] text-gray-500 italic bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl">
+                      Reactivation unsupported
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       )}
 
       {/* ======================================================== */}
-      {/* TAB 4: CAPACITY CONFIGURATION                           */}
+      {/* SECTION D: CAPACITY CONFIGURATION                       */}
       {/* ======================================================== */}
       {activeTab === "config" && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-xs space-y-6">
+        <section aria-labelledby="capacity-heading" className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-xs space-y-6">
           <div className="border-b border-gray-100 pb-4">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 id="capacity-heading" className="text-xl font-bold text-gray-900">
               Global Mentorship Capacity Configuration
             </h2>
             <p className="text-xs text-gray-500 mt-1">
@@ -979,7 +1034,7 @@ export default function AdminMentorsPage() {
               <span>✅ {configSuccessMsg}</span>
               <button
                 onClick={() => setConfigSuccessMsg(null)}
-                className="text-emerald-700 hover:text-emerald-900 font-bold"
+                className="text-emerald-700 hover:text-emerald-900 font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -998,10 +1053,11 @@ export default function AdminMentorsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {/* Minimum Mentees */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-gray-700">
-                  Minimum Capacity (Min Mentees) <span className="text-red-500">*</span>
+                <label htmlFor="minMenteesInput" className="block text-xs font-bold text-gray-700">
+                  Minimum Capacity <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="minMenteesInput"
                   type="number"
                   min="1"
                   max="100"
@@ -1009,7 +1065,7 @@ export default function AdminMentorsPage() {
                   onChange={(e) =>
                     setCapacityForm({
                       ...capacityForm,
-                      minMentees: parseInt(e.target.value) || 1,
+                      minMentees: parseInt(e.target.value, 10) || 1,
                     })
                   }
                   required
@@ -1022,18 +1078,19 @@ export default function AdminMentorsPage() {
 
               {/* Default Mentees */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-gray-700">
-                  Default Capacity (Default Mentees) <span className="text-red-500">*</span>
+                <label htmlFor="defaultMenteesInput" className="block text-xs font-bold text-gray-700">
+                  Default Capacity <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="defaultMenteesInput"
                   type="number"
-                  min={capacityForm.minMentees}
-                  max={capacityForm.maxMentees}
+                  min="1"
+                  max="100"
                   value={capacityForm.defaultMentees}
                   onChange={(e) =>
                     setCapacityForm({
                       ...capacityForm,
-                      defaultMentees: parseInt(e.target.value) || capacityForm.minMentees,
+                      defaultMentees: parseInt(e.target.value, 10) || 1,
                     })
                   }
                   required
@@ -1046,18 +1103,19 @@ export default function AdminMentorsPage() {
 
               {/* Maximum Mentees */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-gray-700">
-                  Maximum Ceiling (Max Mentees) <span className="text-red-500">*</span>
+                <label htmlFor="maxMenteesInput" className="block text-xs font-bold text-gray-700">
+                  Maximum Ceiling <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="maxMenteesInput"
                   type="number"
-                  min={capacityForm.minMentees}
+                  min="1"
                   max="100"
                   value={capacityForm.maxMentees}
                   onChange={(e) =>
                     setCapacityForm({
                       ...capacityForm,
-                      maxMentees: parseInt(e.target.value) || capacityForm.minMentees,
+                      maxMentees: parseInt(e.target.value, 10) || 1,
                     })
                   }
                   required
@@ -1103,30 +1161,36 @@ export default function AdminMentorsPage() {
               </button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
       {/* ======================================================== */}
-      {/* MODAL: INSPECT FULL APPLICATION                         */}
+      {/* MODAL: INSPECT FULL APPLICATION / DOSSIER               */}
       {/* ======================================================== */}
       {inspectModalProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="inspect-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        >
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between border-b border-gray-100 pb-4">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-purple-600">
-                  Mentor Application Dossier
+                  Mentor Profile Dossier
                 </span>
-                <h3 className="text-xl font-extrabold text-gray-900 mt-1">
+                <h3 id="inspect-dialog-title" className="text-xl font-extrabold text-gray-900 mt-1">
                   {inspectModalProfile.name}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Applied on {new Date(inspectModalProfile.createdAt).toLocaleString()}
+                  Applied on {new Date(inspectModalProfile.createdAt).toLocaleString()} • Status: <strong className="text-gray-900">{inspectModalProfile.verificationStatus}</strong>
                 </p>
               </div>
               <button
                 onClick={() => setInspectModalProfile(null)}
-                className="text-gray-400 hover:text-gray-600 font-bold text-lg p-1"
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg p-1 cursor-pointer"
+                aria-label="Close dossier modal"
               >
                 ✕
               </button>
@@ -1151,9 +1215,9 @@ export default function AdminMentorsPage() {
                   <span className="font-bold text-gray-900">{inspectModalProfile.email}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block font-medium">Target Mentee Capacity</span>
+                  <span className="text-gray-400 block font-medium">Capacity (Active / Max)</span>
                   <span className="font-bold text-gray-900">
-                    {inspectModalProfile.maxMentees} concurrent mentees
+                    {inspectModalProfile.activeMenteesCount} / {inspectModalProfile.maxMentees} mentees ({inspectModalProfile.availableSlots} available)
                   </span>
                 </div>
               </div>
@@ -1170,18 +1234,22 @@ export default function AdminMentorsPage() {
               <div>
                 <h4 className="font-bold text-gray-900 mb-1">Declared Expertise Areas</h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {inspectModalProfile.expertiseAreas
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                    .map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-semibold border border-purple-100"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                  {inspectModalProfile.expertiseAreas ? (
+                    inspectModalProfile.expertiseAreas
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                      .map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-semibold border border-purple-100"
+                        >
+                          {tag}
+                        </span>
+                      ))
+                  ) : (
+                    <span className="text-gray-400 italic">No expertise areas listed.</span>
+                  )}
                 </div>
               </div>
 
@@ -1226,6 +1294,14 @@ export default function AdminMentorsPage() {
                     )}
                 </div>
               </div>
+
+              {/* Suspension details if suspended */}
+              {inspectModalProfile.verificationStatus === "SUSPENDED" && inspectModalProfile.rejectionReason && (
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 space-y-1">
+                  <p className="font-bold">Suspension Audit Note:</p>
+                  <p>{inspectModalProfile.rejectionReason}</p>
+                </div>
+              )}
             </div>
 
             {/* Modal Actions */}
@@ -1238,27 +1314,43 @@ export default function AdminMentorsPage() {
               </button>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setRejectModalProfile(inspectModalProfile);
-                    setRejectReason("");
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 font-bold text-xs transition cursor-pointer"
-                >
-                  Reject...
-                </button>
-                <button
-                  onClick={() => handleApproveApplication(inspectModalProfile.id)}
-                  disabled={actionLoadingId === inspectModalProfile.id}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {actionLoadingId === inspectModalProfile.id ? (
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <span>✓</span>
-                  )}
-                  <span>Approve Application</span>
-                </button>
+                {inspectModalProfile.verificationStatus === "APPLIED" && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setRejectModalProfile(inspectModalProfile);
+                        setRejectReason("");
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 font-bold text-xs transition cursor-pointer"
+                    >
+                      Reject...
+                    </button>
+                    <button
+                      onClick={() => handleApproveApplication(inspectModalProfile.id)}
+                      disabled={actionLoadingId === inspectModalProfile.id}
+                      className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {actionLoadingId === inspectModalProfile.id ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <span>✓</span>
+                      )}
+                      <span>Approve Application</span>
+                    </button>
+                  </>
+                )}
+
+                {inspectModalProfile.verificationStatus === "APPROVED" && (
+                  <button
+                    onClick={() => {
+                      setSuspendModalProfile(inspectModalProfile);
+                      setSuspendReason("");
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    Suspend Mentor...
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1269,33 +1361,50 @@ export default function AdminMentorsPage() {
       {/* MODAL: REJECT APPLICATION WITH REASON                   */}
       {/* ======================================================== */}
       {rejectModalProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reject-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        >
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between border-b border-gray-100 pb-3">
               <div>
-                <h3 className="text-lg font-extrabold text-gray-900">
+                <h3 id="reject-dialog-title" className="text-lg font-extrabold text-gray-900">
                   Reject Mentor Application
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Candidate: {rejectModalProfile.name}
+                  Candidate: {rejectModalProfile.name} ({rejectModalProfile.jobTitle} at {rejectModalProfile.company})
                 </p>
               </div>
               <button
                 onClick={() => setRejectModalProfile(null)}
-                className="text-gray-400 hover:text-gray-600 font-bold text-base"
+                className="text-gray-400 hover:text-gray-600 font-bold text-base cursor-pointer"
+                aria-label="Close reject modal"
               >
                 ✕
               </button>
             </div>
 
+            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-900 text-xs space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <span>ℹ️</span>
+                <span>Application Rejection</span>
+              </p>
+              <p className="text-red-800">
+                The application will be set to REJECTED with your constructive feedback note. The record remains preserved for administrative auditing.
+              </p>
+            </div>
+
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-gray-700">
+              <label htmlFor="rejectReasonTextarea" className="block text-xs font-bold text-gray-700">
                 Reason / Constructive Feedback (Optional)
               </label>
               <textarea
+                id="rejectReasonTextarea"
                 rows={4}
                 maxLength={1000}
-                placeholder="e.g. Additional industry experience required for mentor verification..."
+                placeholder="e.g. Additional industry experience or portfolio verification required..."
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 className="w-full px-3 py-2.5 text-xs rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
@@ -1335,14 +1444,19 @@ export default function AdminMentorsPage() {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL: SUSPEND MENTOR WITH REASON                       */}
+      {/* MODAL: SUSPEND MENTOR WITH CONSEQUENCE WARNING          */}
       {/* ======================================================== */}
       {suspendModalProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="suspend-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        >
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between border-b border-gray-100 pb-3">
               <div>
-                <h3 className="text-lg font-extrabold text-red-700">
+                <h3 id="suspend-dialog-title" className="text-lg font-extrabold text-red-700">
                   Suspend Mentor Profile
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -1351,27 +1465,35 @@ export default function AdminMentorsPage() {
               </div>
               <button
                 onClick={() => setSuspendModalProfile(null)}
-                className="text-gray-400 hover:text-gray-600 font-bold text-base"
+                className="text-gray-400 hover:text-gray-600 font-bold text-base cursor-pointer"
+                aria-label="Close suspend modal"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs">
-              <p className="font-bold">⚠️ Warning:</p>
-              <p className="mt-0.5">
-                Suspending this mentor will immediately revoke their public visibility, disable student request submissions, and set their status to SUSPENDED.
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1.5">
+              <p className="font-bold flex items-center gap-1.5">
+                <span>⚠️</span>
+                <span>Consequences of Suspension:</span>
               </p>
+              <ul className="list-disc pl-4 space-y-1 text-amber-800">
+                <li>The mentor is immediately removed from public discovery in the Mentorship Hub.</li>
+                <li>Students cannot submit new mentorship requests to this mentor.</li>
+                <li>Existing accepted mentorships, chat conversations, and message history remain preserved.</li>
+                <li>Reactivation is not supported by backend APIs without administrative database intervention.</li>
+              </ul>
             </div>
 
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-gray-700">
+              <label htmlFor="suspendReasonTextarea" className="block text-xs font-bold text-gray-700">
                 Reason for Suspension (Optional)
               </label>
               <textarea
+                id="suspendReasonTextarea"
                 rows={4}
                 maxLength={1000}
-                placeholder="e.g. Inactivity, repeated unfulfilled sessions, or community violation..."
+                placeholder="e.g. Inactivity, unfulfilled mentorship commitments, or policy violation..."
                 value={suspendReason}
                 onChange={(e) => setSuspendReason(e.target.value)}
                 className="w-full px-3 py-2.5 text-xs rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
