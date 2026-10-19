@@ -1104,15 +1104,74 @@ Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progre
 
 ---
 
+### Phase 28 — Mentorship Module: Final Feature Completion & 15-Stage E2E Multi-Actor Verification
+
+#### Status: COMPLETE (15/15 Stages Verified Live in Production, Coding Profile Integrated, Reapplication Enabled, Admin Reactivation Implemented, Enriched Mentee Details Added, 100% Deployed)
+- **Date**: 2026-10-19
+- **Scope & Objectives**:
+  - Deliver all remaining requirements of the mentorship system as one connected, production-ready implementation.
+  - Implement a dedicated, required `codingProfileUrl` field persisted in MySQL, exposed via DTOs/APIs, and surfaced across discovery, public profiles, and administrative reviews.
+  - Deliver an accessible and persistent reapplication lifecycle for rejected applicants with administrative feedback display.
+  - Implement an administrative reactivation endpoint (`PATCH /api/admin/mentors/{mentorId}/reactivate`) and frontend control allowing administrators to safely restore suspended mentors.
+  - Enrich incoming mentorship requests on the mentor management dashboard with mentee career goals, user level, and acquired competencies/skills from `UserSkillRepository`.
+  - Execute a comprehensive 15-stage multi-actor end-to-end verification across Student, Mentor, and Admin roles against live production infrastructure.
+
+- **Architecture & Implementation Details**:
+  1. **Coding Profile Integration**:
+     - Added `codingProfileUrl` (`@Column(name = "coding_profile_url", length = 255)`) to `MentorProfile` entity.
+     - Updated `MentorApplicationDto`, `MentorProfileDto`, and `MentorProfileUpdateDto` with validation (`@NotBlank(message = "Coding profile URL is required")`).
+     - Exposed in `/mentorship/apply` form, `/mentorship/[id]` profile badge with external link, and `/admin/mentors` application dossier modal.
+  2. **Candidate Reapplication Lifecycle**:
+     - Updated `MentorProfileService.submitApplication` to permit reapplications when an applicant's existing profile is `REJECTED`.
+     - In-place entity updates prevent unique key constraint conflicts on `user_id`, clear previous `rejectionReason`, and reset verification status back to `APPLIED`.
+     - `/mentorship/apply` renders a clear banner detailing administrator rejection feedback, pre-fills previous application information, and provides a "Submit Reapplication" action.
+  3. **Administrative Reactivation Workflow**:
+     - Implemented `reactivateMentor(Long mentorId)` in `MentorProfileService` and exposed via `PATCH /api/admin/mentors/{mentorId}/reactivate` in `AdminMentorController`.
+     - Validates profile status is `SUSPENDED`, checks profile completeness, resets status to `APPROVED`, sets `isActive = true`, and clears the suspension reason.
+     - Added Reactivation modal and trigger button on `/admin/mentors` with full keyboard/screen-reader accessibility (`role="dialog"`, `aria-modal="true"`).
+  4. **Enriched Mentee Profile for Mentors**:
+     - Extended `MentorshipRequestDto` with `studentCareerGoal`, `studentUserLevel`, and `studentSkills`.
+     - `MentorshipRequestService.mapToDto` fetches the student's acquired skills from `UserSkillRepository` and populates career goal and experience level.
+     - `/mentorship/manage` incoming request cards render student career goal, experience level pill, and badges for each verified skill.
+
+- **Live Production Multi-Actor Verification Results (`test-15-stages.mjs`)**:
+  - **Target Environment**: Live Railway Backend (`https://backend-production-f4cb.up.railway.app`) & Vercel Frontend (`https://frontend-alpha-one-pvh4znooes.vercel.app`)
+  - **Results**: **15 / 15 Stages Passed with 100% Success**:
+    1. *Stage 1 (Admin Config)*: Admin authenticated, capacity limits inspected and validated (`minMentees`, `maxMentees`).
+    2. *Stage 2 (Student Setup)*: Student account registered, career goal updated to 'Java Backend Architect', skill 'Spring Boot' added.
+    3. *Stage 3 (Mentor Candidate Setup)*: Mentor candidate account registered.
+    4. *Stage 4 (Apply with Coding Profile)*: Candidate applied with required GitHub, LinkedIn, and Coding Profile URLs (`codingProfileUrl` persisted in DB).
+    5. *Stage 5 (Admin Review Queue)*: Admin reviewed pending queue; candidate dossier verified with complete coding profile.
+    6. *Stage 6 (Admin Rejection with Feedback)*: Admin rejected application with actionable guidance note; profile transitioned to `REJECTED`.
+    7. *Stage 7 (Candidate Reapplication)*: Candidate retrieved rejection notice, adjusted details, and re-applied; profile updated in-place back to `APPLIED`.
+    8. *Stage 8 (Admin Approval)*: Admin approved reapplication; profile transitioned to `APPROVED` and `active = true`.
+    9. *Stage 9 (Public Discovery)*: Student discovered approved mentor in Mentorship Hub search; coding profile and availability slots confirmed.
+    10. *Stage 10 (Mentorship Request)*: Student submitted request with architectural goals; request created in `PENDING` state.
+    11. *Stage 11 (Mentor Review with Enriched Mentee Details)*: Mentor reviewed request; student career goal, experience level, and 'Spring Boot' skill confirmed.
+    12. *Stage 12 (Mentor Acceptance)*: Mentor accepted request with welcome note; direct 1-on-1 conversation provisioned; mentor active capacity incremented.
+    13. *Stage 13 (Messaging Exchange)*: Student and mentor exchanged direct messages through provisioned conversation; all messages persisted and readable.
+    14. *Stage 14 (Mentorship Completion)*: Mentorship marked complete; active capacity recycled to 2 available slots; conversation history preserved.
+    15. *Stage 15 (Suspension & Safe Reactivation)*: Admin suspended mentor (removed from public discovery); admin executed reactivation via `PATCH /api/admin/mentors/{id}/reactivate`; mentor restored to `APPROVED`, active, and visible in public directory.
+
+- **Verification Matrix**:
+  - Backend Unit Tests: `mvnw test` $\rightarrow$ **41/41 passed, 0 failures, 0 errors**.
+  - Frontend TypeScript: `npx tsc --noEmit` $\rightarrow$ **0 errors**.
+  - Frontend Build: `npm run build` $\rightarrow$ **26/26 routes generated cleanly with 0 errors**.
+  - Live E2E Verification: `test-15-stages.mjs` $\rightarrow$ **15/15 stages passed**.
+  - Production Deployment: Synchronized and operational on Railway backend and Vercel frontend.
+
+---
+
 ## 9. Immediate Next Step
 
 ### Task
-Mentorship Module Lifecycle Sign-off & Production Operating Monitoring.
-- The complete Mentorship Module (Phases 1 through Phase 4) is 100% implemented, tested, verified end-to-end with multi-actor interactions, and deployed in production.
-- Proceed to next major roadmap initiative or user-directed enhancements.
+Mentorship Feature Complete & Production Sign-off.
+- The complete Mentorship Feature across Student, Mentor, and Administrator workflows is 100% implemented, verified live in production, and deployed.
+- Proceed to next major roadmap initiative or user-directed tasks.
 
 ### Reason
-All 7 phases of the connected mentorship journey have been fully proven and validated against live production infrastructure.
+All 15 stages of the multi-actor mentorship lifecycle, including coding profiles, reapplication, admin reactivation, and mentee enrichment, have passed verification against live production systems.
 
 ### Expected Result
-Production-ready Career Advisor platform operating with complete, connected mentorship capabilities.
+Production-ready Career Advisor platform with full mentorship capabilities live at `https://frontend-alpha-one-pvh4znooes.vercel.app`.
+
