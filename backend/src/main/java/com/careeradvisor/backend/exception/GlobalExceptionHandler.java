@@ -168,6 +168,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException ex) {
+        logger.warn("Invalid state or capacity limit: {}", ex.getMessage());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "Conflict / Invalid State",
+                ex.getMessage()
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
         logger.error("Unhandled server exception: ", ex);

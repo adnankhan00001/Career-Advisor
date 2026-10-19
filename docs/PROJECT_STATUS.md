@@ -2,7 +2,7 @@
 
 > **Permanent Single Source of Truth**  
 > This document tracks the complete development history, system architecture, feature matrix, testing records, and viva-ready engineering specifications for the Career-Advisor project.  
-> **Status**: Full-Stack Platform Complete, Hardened & Production Verified (Phase 15 COMPLETE)
+> **Status**: Full-Stack Platform Complete & Live in Production; Mentorship Module Phase 1, 2, 3B.1, 3B.2, 3B.3, 3B.4.1, 3B.4.2A, 3B.4.2B & 3B.5 Admin Review & Capacity COMPLETE (Phase 25)
 
 ---
 
@@ -82,7 +82,8 @@
 │  │   InterviewAnswerRepository, ResumeRepository, AiUsageLogRepository│  │
 │  │   ConversationRepository, ChatMessageRepository, CallSessionRepo, │  │
 │  │   LearningPlanRepository, LearningTaskRepository,                 │  │
-│  │   PlannerPreferenceRepository, WeeklyProgressReportRepository)    │  │
+│  │   PlannerPreferenceRepository, WeeklyProgressReportRepository,    │  │
+│  │   MentorProfileRepository, MentorshipRequestRepository)           │  │
 │  └──────────────────────────────────┬────────────────────────────────┘  │
 └─────────────────────────────────────┼───────────────────────────────────┘
                                       │ Spring Data JPA (Hibernate Dialect)
@@ -96,7 +97,8 @@
 │             interview_answers, resumes, resume_skills, ai_usage_logs,   │
 │             conversations, conversation_participants, chat_messages,    │
 │             call_sessions, learning_plans, learning_tasks,              │
-│             planner_preferences, weekly_progress_reports                │
+│             planner_preferences, weekly_progress_reports,               │
+│             mentor_profiles, mentorship_requests                        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -744,17 +746,277 @@ Phase 15 — Unified Career Intelligence, Action Plan, Adaptive Planner & Progre
 
 ---
 
+### Phase 17 — Mentorship Module: Phase 1 (Domain Models & Repositories)
+
+#### Status: COMPLETE (Backend Models, Enums, Repositories, and Unit Tests Verified)
+- **Date**: 2026-10-19
+- **Architecture & Design Decisions**:
+  - **Decoupled Profile Entity Strategy**: Retained `User.role = Role.USER` to prevent account bifurcation, preserve admin role counting, and enable dual user/mentor identity. Created a dedicated `@OneToOne` `MentorProfile` entity.
+  - **Verification Lifecycle**: Implemented `MentorVerificationStatus` (`APPLIED`, `APPROVED`, `REJECTED`, `SUSPENDED`) to support administrative vetting and status management.
+  - **Mentorship Request Lifecycle**: Implemented `MentorshipRequestStatus` (`PENDING`, `ACCEPTED`, `DECLINED`, `CANCELLED`, `COMPLETED`).
+  - **Direct Messaging Integration Bridge**: Configured `MentorshipRequest.conversation` as a nullable foreign key referencing `Conversation`. When a mentor accepts a request, a `USER_TO_USER` conversation is created/linked automatically without altering the existing messaging system.
+- **Created Files**:
+  - `MentorVerificationStatus.java`: Lifecycle states for mentor applications.
+  - `MentorshipRequestStatus.java`: Lifecycle states for student mentorship requests.
+  - `MentorProfile.java`: Entity mapped to `mentor_profiles` table (`user_id`, `job_title`, `company`, `years_of_experience`, `bio`, `expertise_areas`, `max_mentees`, `verification_status`, `is_active`, `rejection_reason`, timestamps).
+  - `MentorshipRequest.java`: Entity mapped to `mentorship_requests` table (`student_id`, `mentor_profile_id`, `goal_description`, `status`, `conversation_id`, `response_note`, timestamps).
+  - `MentorProfileRepository.java`: Queries for user lookup, status filtering, active approved mentors, and full-text keyword search across name, company, title, and expertise.
+  - `MentorshipRequestRepository.java`: Queries for student requests, mentor queues, active request counts, and duplicate prevention.
+  - `MentorshipModelTests.java`: Comprehensive JUnit 5 unit tests validating default values, associations, and enum integrity.
+- **Verification Record**:
+  - Backend compilation: `.\mvnw.cmd test-compile` $\rightarrow$ 233 source files compiled with 0 errors.
+  - Model unit tests: `.\mvnw.cmd test -Dtest=MentorshipModelTests` $\rightarrow$ 3 tests run, 0 failures, 0 errors in 0.055s.
+
+---
+
+### Phase 18 — Mentorship Module: Phase 2 (Business Logic, Authorization & REST APIs)
+
+#### Status: COMPLETE (Services, Controllers, Security, Hybrid Capacity, Pessimistic Locking & Tests Verified)
+- **Date**: 2026-10-19
+- **Architecture & Design Implementations**:
+  - **Hybrid Capacity Control**: Implemented `MentorshipCapacityConfigService` enforcing administrator-defined minimum (default: 1) and maximum (default: 10) active mentee thresholds alongside mentor-selected limits. Exposes `GET /api/admin/mentors/config` and `PUT /api/admin/mentors/config`.
+  - **Concurrency & Pessimistic Locking**: Configured `@Lock(LockModeType.PESSIMISTIC_WRITE)` in `MentorProfileRepository.findByIdWithLock(id)`. When a mentor accepts a request, an exclusive database lock is acquired during capacity evaluation (`countByMentorIdAndStatus(ACCEPTED)`), completely eliminating race conditions and over-allocation.
+  - **State Machine Integrity**: Strictly enforces permitted state transitions:
+    - `PENDING` $\rightarrow$ `ACCEPTED` (only target mentor, checks active slots, acquires lock, creates 1-on-1 chat)
+    - `PENDING` $\rightarrow$ `DECLINED` (only target mentor, optional response note)
+    - `PENDING` $\rightarrow$ `CANCELLED` (only requesting student)
+    - `ACCEPTED` $\rightarrow$ `COMPLETED` (either participant, frees up capacity slot while preserving chat history)
+  - **Direct Messaging Integration**: Integrates directly with existing `ConversationService.createUserToUserConversation(...)`. Automatically creates or reuses the `USER_TO_USER` conversation and attaches `conversation_id` to `MentorshipRequest`.
+  - **Administrative Review**: Exposes `/api/admin/mentors/pending`, `/api/admin/mentors/{id}/approve`, `/api/admin/mentors/{id}/reject`, and `/api/admin/mentors/{id}/suspend` with explicit self-approval prevention and role-based access control.
+  - **Global Exception Mapping**: Mapped `IllegalStateException` to HTTP 409 Conflict in `GlobalExceptionHandler` to cleanly report capacity limits and invalid state transitions.
+- **Created & Modified Files**:
+  - DTOs: `MentorApplicationDto.java`, `MentorProfileUpdateDto.java`, `MentorProfileDto.java`, `CreateMentorshipRequestDto.java`, `MentorshipRequestDto.java`, `MentorshipActionDto.java`, `MentorshipCapacityConfigDto.java`.
+  - Services: `MentorshipCapacityConfigService.java`, `MentorProfileService.java`, `MentorshipRequestService.java`.
+  - Controllers: `MentorController.java` (`/api/mentors/**`), `AdminMentorController.java` (`/api/admin/mentors/**`).
+  - Tests: `MentorshipServiceTests.java` (18 unit tests), `MentorControllerTests.java` (5 tests), `AdminMentorControllerTests.java` (5 tests), `MentorshipModelTests.java` (3 tests).
+- **Verification Record**:
+  - Backend compilation: `.\mvnw.cmd test-compile` $\rightarrow$ 245 source files compiled cleanly with 0 errors.
+  - Test Suite: `.\mvnw.cmd test "-Dtest=*Mentor*"` $\rightarrow$ **31 tests run, 0 failures, 0 errors** in 21.888s.
+
+---
+
+### Phase 19 — Mentorship Module: Phase 3B.1 (Frontend Foundation, WebSocket Token Normalization & Typed Service)
+
+#### Status: COMPLETE (Token Key Normalized, API Endpoints Added, Typed mentorService.ts & Production Build Verified)
+- **Date**: 2026-10-19
+- **Architecture & Foundation Changes**:
+  - **WebSocket Token Normalization**: Resolved the token key mismatch in `frontend/lib/websocketService.ts` by importing `getStoredToken()` from `./apiClient`. Both the REST API client and the WebSocket/STOMP service now read consistently from the single source of truth (`"auth_token"`). No circular dependencies were introduced.
+  - **API Configuration**: Added full `API_ENDPOINTS.MENTORS` in `frontend/lib/config.ts` covering all 12 student/mentor endpoints and 8 admin endpoints with reusable dynamic ID builders.
+  - **Typed Service Implementation**: Created `frontend/lib/mentorService.ts` modeling all backend DTOs (`MentorApplicationDto`, `MentorProfileUpdateDto`, `MentorProfileDto`, `CreateMentorshipRequestDto`, `MentorshipRequestDto`, `MentorshipActionDto`, `MentorshipCapacityConfigDto`, and enums `MentorVerificationStatus`, `MentorshipRequestStatus`).
+  - **Error Fidelity**: Leverages `apiRequest` without swallowing HTTP 400 (validation), 401 (auth), 403 (forbidden), 404 (not found), or 409 (capacity/duplicate conflict) errors.
+- **Created & Modified Files**:
+  - Modified: `frontend/lib/websocketService.ts` (replaced `localStorage.getItem('token')` with `getStoredToken()`).
+  - Modified: `frontend/lib/config.ts` (added `API_ENDPOINTS.MENTORS`).
+  - Created: `frontend/lib/mentorService.ts` (full typed client service).
+- **Verification Record**:
+  - TypeScript validation: `npx tsc --noEmit` $\rightarrow$ Passed with **0 errors**.
+  - Production build: `npm run build` (Next.js 16.2.3 with Turbopack) $\rightarrow$ **22/22 routes generated cleanly with 0 errors**.
+
+---
+
+### Phase 20 — Mentorship Module: Phase 3B.2 (Navigation Integration)
+
+#### Status: COMPLETE (Header Shortcut Updated, Mentorship Added to Sidebar & Verified)
+- **Date**: 2026-10-19
+- **Navigation Changes**:
+  - **Header Shortcut**: Replaced the `/mock-interview` quick shortcut in the top navbar (`frontend/app/(protected)/layout.tsx`) with `"Find a Mentor"` pointing to `/mentorship` (with indigo styling `text-indigo-700 bg-indigo-50 border-indigo-200` and `👥` icon).
+  - **Sidebar & Mobile Drawer Navigation**: Inserted `{ label: "Mentorship", href: "/mentorship", icon: "👥" }` into `navItems` directly below `"Messages"` (`/messages`).
+  - **Page Title Mapping**: Added title mapping in `getPageTitle()` returning `"Mentorship Hub"` whenever the pathname starts with `/mentorship`.
+  - **Preservation**: The original `"Mock Interview"` entry in `navItems` (`/mock-interview` with icon `🎯`) was fully preserved in its exact position.
+- **Created & Modified Files**:
+  - Modified: `frontend/app/(protected)/layout.tsx` (navigation items, page title, top header shortcut).
+- **Verification Record**:
+  - TypeScript validation: `npx tsc --noEmit` $\rightarrow$ Passed with **0 errors**.
+  - Production build: `npm run build` (Next.js 16.2.3 with Turbopack) $\rightarrow$ **22/22 routes generated cleanly with 0 errors**.
+
+---
+
+### Phase 21 — Mentorship Module: Phase 3B.3 (Mentorship Hub UI & Deterministic Recommendations)
+
+#### Status: COMPLETE (Mentorship Hub Page Created, Recommendations Implemented, Request Flow & Production Build Verified)
+- **Date**: 2026-10-19
+- **UI Architecture & Features**:
+  - **Hub Route**: Built `frontend/app/(protected)/mentorship/page.tsx` integrating real backend services (`mentorService.getApprovedMentors`, `mentorService.getSentRequests`, `mentorService.getMyProfile`, `progressService.getProgressSummary`, `skillService.getUserSkills`).
+  - **Deterministic Recommendation Utility**: Implemented `frontend/lib/mentorRecommendation.ts` utilizing transparent keyword normalization, direct skill-to-expertise scoring (10 pts exact, 6 pts partial), career goal alignment (15 pts direct, 4-5 pts keyword), slot availability prioritization (+1 pt), stable tie-breaking, and human-readable evidence strings without external AI/ML dependencies.
+  - **Explore All Mentors Directory**: Responsive search input (matching name, job title, company, or expertise) and dynamic filter pills extracted from all active mentor profiles. Shows real mentor fields, years of experience, bio, and slot availability badges (`availableSlots > 0` vs `Fully Booked`).
+  - **Mentorship Request Modal**: Accessible modal strictly adhering to the backend DTO `{ goalDescription: string }` with character counter (max 2000 chars), live validation, conflict error handling (HTTP 409 duplicate request or capacity reached), and background list refresh. Prevents self-mentorship and requests when available slots are 0.
+  - **My Mentorships Tab**: Dedicated tab displaying all sent requests with live status badges (`PENDING`, `ACCEPTED`, `DECLINED`, `CANCELLED`, `COMPLETED`), submission dates, student goals, mentor response notes, interactive request cancellation (`mentorService.cancelRequest`), and direct "Open Messages" link to `/messages` for accepted mentorships.
+  - **Context-Aware Navigation Actions**: Provides status-aware actions for mentor application status (`APPLIED` review badge, `APPROVED` mentor dashboard notice, or informative modal for prospective applicants).
+- **Created & Modified Files**:
+  - Created: `frontend/lib/mentorRecommendation.ts` (deterministic scoring and sorting utility).
+  - Created: `frontend/app/(protected)/mentorship/page.tsx` (Mentorship Hub page and modal components).
+  - Modified: `docs/PROJECT_STATUS.md` (recorded Phase 21 completion and updated next step).
+- **Verification Record**:
+  - TypeScript validation: `npx tsc --noEmit` $\rightarrow$ Passed with **0 errors**.
+  - Production build: `npm run build` (Next.js 16.2.3 with Turbopack) $\rightarrow$ **23/23 routes generated cleanly with 0 errors** (including `○ /mentorship`).
+
+---
+
+### Phase 22 — Mentorship Module: Phase 3B.4.1 (Mentor Application Page & Verification Status Views)
+
+#### Status: COMPLETE (Mentor Application Page at /mentorship/apply Created, Status Views Implemented, Form Validation & Production Build Verified)
+- **Date**: 2026-10-19
+- **Architecture & Application Features**:
+  - **Application Route**: Built `frontend/app/(protected)/mentorship/apply/page.tsx` integrating `mentorService.apply(data: MentorApplicationDto)` and `mentorService.getMyProfile()`.
+  - **Strict DTO Fidelity**: Uses verified backend fields (`jobTitle`, `company`, `yearsOfExperience`, `bio`, `expertiseAreas`, `maxMentees`, `linkedinUrl`, `githubUrl`, `portfolioUrl`). Validates numeric bounds (`yearsOfExperience >= 0`, `maxMentees` 1–10, string length limits $\le 120$ chars, $\le 500$ chars, $\le 2000$ chars) and URL format (`http://` or `https://`, $\le 255$ chars).
+  - **Dynamic Status Lifecycle Views**:
+    - **First-time Applicants (HTTP 404)**: Renders the structured multi-section application form with clean labels, field validation, character counters, and loading spinner.
+    - **APPLIED (Pending Review)**: Renders a dedicated "Under Administrative Review" status card with an overview of all submitted application details, explanation of the review process, and return link to the Hub.
+    - **APPROVED**: Renders an "Approved & Active Mentor" status view with profile summary and navigation links.
+    - **REJECTED**: Renders an "Application Not Approved" status view displaying the admin's `rejectionReason` callout note and policy explanation.
+    - **SUSPENDED**: Renders an "Mentorship Suspended" view directing the user to platform support.
+  - **Duplicate Application Prevention**: Guards against concurrent submissions via disabled button state and gracefully catches backend HTTP 409 conflict errors without clearing entered form data.
+  - **Hub Integration**: Updated `frontend/app/(protected)/mentorship/page.tsx` to seamlessly link "Apply to Become a Mentor" and pending status badges directly to `/mentorship/apply`.
+- **Coding-Practice Profile Status**:
+  - The current backend model and DTO define `portfolioUrl` (validated with `validateUrl(..., "Portfolio")`). While applicants can supply a coding practice profile link (e.g., LeetCode/HackerRank) within `portfolioUrl`, the backend lacks an explicit `codingPracticeProfileUrl` property. Smallest backend change needed: add `codingProfileUrl` to `MentorProfile`, `mentor_profiles` table, and `MentorApplicationDto`.
+- **Created & Modified Files**:
+  - Created: `frontend/app/(protected)/mentorship/apply/page.tsx` (mentor application form and status views).
+  - Modified: `frontend/app/(protected)/mentorship/page.tsx` (linked apply buttons to `/mentorship/apply`).
+  - Modified: `docs/PROJECT_STATUS.md` (recorded Phase 22 completion and updated next step).
+- **Verification Record**:
+  - TypeScript validation: `npx tsc --noEmit` $\rightarrow$ Passed with **0 errors**.
+  - Production build: `npm run build` (Next.js 16.2.3 with Turbopack) $\rightarrow$ **24/24 routes generated cleanly with 0 errors** (including `○ /mentorship/apply`).
+
+---
+
+### Phase 23 — Mentorship Module: Phase 3B.4.2A (Individual Mentor Profile & Directory Integration)
+
+#### Status: COMPLETE (Dynamic Route /mentorship/[id] Created, View Profile Actions Added, Request Modal Integrated & Production Build Verified)
+- **Date**: 2026-10-19
+- **Architecture & Profile Features**:
+  - **Dynamic Route**: Built `frontend/app/(protected)/mentorship/[id]/page.tsx` utilizing dynamic params (`use(params)` for Next.js App Router). Retrieves authoritative profile via `mentorService.getMentorById(id)` (`GET /api/mentors/{id}`).
+  - **Data Fidelity & Comprehensive Display**:
+    - Mentor identity, job title, company, avatar initial, verified badge (`✅ Verified Mentor`).
+    - Key metrics grid: years of experience, current active mentee count vs maximum capacity (`activeMenteesCount` / `maxMentees`), and slot availability pill.
+    - Expertise areas parsed cleanly into badges.
+    - Full biography with whitespace preservation (omits empty section if bio is null).
+    - Verified external links for LinkedIn, GitHub, and Portfolio / Coding Practice profile with safe `rel="noopener noreferrer"` and `target="_blank"`.
+  - **Status Handling**:
+    - Loading skeleton with animated placeholders.
+    - Dedicated 404 / Not Found view when mentor ID does not exist or profile is inactive.
+    - Existing engagement callouts: detects if student already has a `PENDING` request (showing submitted goal and review status) or an `ACCEPTED` mentorship (providing direct "Open Chat" link to `/messages`).
+  - **Request Mentorship Flow**: Accessible modal enforcing exact backend payload `{ goalDescription: string }` with character counter (max 2000 chars), live validation, conflict error handling (HTTP 409 duplicate request or capacity reached), and local slot/status refresh upon submission.
+  - **Directory Integration**: Updated `MentorCard` in `frontend/app/(protected)/mentorship/page.tsx` with a clickable mentor name link and dedicated `"View Profile"` action button leading directly to `/mentorship/${mentor.id}` without interfering with the existing recommendation ranking, search filters, or request modal.
+- **Created & Modified Files**:
+  - Created: `frontend/app/(protected)/mentorship/[id]/page.tsx` (individual mentor profile page).
+  - Modified: `frontend/app/(protected)/mentorship/page.tsx` (added View Profile link and button to MentorCard).
+  - Modified: `docs/PROJECT_STATUS.md` (recorded Phase 23 completion and updated next step).
+- **Verification Record**:
+  - TypeScript validation: `npx tsc --noEmit` $\rightarrow$ Passed with **0 errors**.
+  - Production build: `npm run build` (Next.js 16.2.3 with Turbopack) $\rightarrow$ **24/24 routes generated cleanly with 0 errors** (including `ƒ /mentorship/[id]`).
+
+---
+
+### Phase 24 — Mentorship Module: Phase 3B.4.2B (Mentor Management Dashboard & Request Lifecycle)
+
+#### Status: COMPLETE (Route /mentorship/manage Created, Capacity Metrics, Accept/Decline/Complete Workflows & Production Build Verified)
+- **Date**: 2026-10-19
+- **Architecture & Dashboard Features**:
+  - **Management Route**: Built `frontend/app/(protected)/mentorship/manage/page.tsx` integrating `mentorService.getMyProfile()` and `mentorService.getReceivedRequests()`.
+  - **Strict Status & Permission State Handling**:
+    - **`APPROVED`**: Activates full management dashboard with capacity meters, filter tabs, and request actions.
+    - **`APPLIED`**: Displays pending administrative review notice with link to review details at `/mentorship/apply`.
+    - **`REJECTED`**: Renders not approved notice with admin feedback note.
+    - **`SUSPENDED`**: Informs mentor that privileges are suspended with support contact link.
+    - **`NOT_FOUND` (HTTP 404)**: Informs non-mentor user that application is required with direct link to `/mentorship/apply`.
+  - **Capacity Overview Widget**:
+    - Real metrics from `MentorProfileDto`: `activeMenteesCount`, `maxMentees`, and `availableSlots`.
+    - Utilization progress bar with dynamic threshold colors (Emerald < 75%, Amber 75–99%, Rose 100%).
+    - Zero-safe division calculations preventing NaN or invalid percentages.
+  - **Incoming Requests Feed**:
+    - Displays student name, email, submission date, goal description, and response notes from `MentorshipRequestDto`.
+    - Sorts requests with `PENDING` prioritized, followed by `ACCEPTED`, `COMPLETED`, `DECLINED`, and `CANCELLED`, sorted chronologically.
+    - Status tabs for All, Pending, Active, Declined, and Completed requests.
+  - **Accept Request Workflow**:
+    - Modal reviewing student goal with optional welcome note ($\le 1000$ chars, matching `MentorshipActionDto`).
+    - Submits via `mentorService.acceptRequest(id, note)`. Automatically links server-provisioned 1-on-1 direct conversation.
+    - Disables accept when `availableSlots <= 0` with tooltip guidance. Refreshes capacity on success.
+    - Surfaces direct `"Open Messages"` link navigating to `/messages`.
+  - **Decline Request Workflow**:
+    - Modal with optional feedback note ($\le 1000$ chars) submitted via `mentorService.declineRequest(id, note)`.
+    - Retains declined requests in list under "Declined" filter without permanent removal.
+  - **Complete Mentorship Workflow**:
+    - Explicit confirmation modal for active mentorships calling `mentorService.completeMentorship(id, note)`.
+    - Retains conversation history while freeing up 1 mentee capacity slot.
+  - **Navigation Integration**:
+    - Updated `frontend/app/(protected)/mentorship/page.tsx` to link `"🛡️ Mentor Dashboard"` directly to `/mentorship/manage` for approved mentors.
+    - Updated `frontend/app/(protected)/layout.tsx` to display `"Mentor Dashboard"` as page title.
+- **Created & Modified Files**:
+  - Created: `frontend/app/(protected)/mentorship/manage/page.tsx` (mentor management dashboard).
+  - Modified: `frontend/app/(protected)/mentorship/page.tsx` (linked Mentor Dashboard button to `/mentorship/manage`).
+  - Modified: `frontend/app/(protected)/layout.tsx` (added `/mentorship/manage` page title mapping).
+  - Modified: `docs/PROJECT_STATUS.md` (recorded Phase 24 completion and updated next step).
+- **Verification Record**:
+  - TypeScript validation: `npx tsc --noEmit` $\rightarrow$ Passed with **0 errors**.
+  - Production build: `npm run build` (Next.js 16.2.3 with Turbopack) $\rightarrow$ **25/25 routes generated cleanly with 0 errors** (including `○ /mentorship/manage`).
+
+---
+
+### Phase 25 — Mentorship Module: Phase 3B.5 (Administrative Mentor Review & Capacity Management)
+
+#### Status: COMPLETE (Route /admin/mentors Created, 4 Governance Tabs, Application Approvals/Rejections, Suspensions/Reactivations, Global Capacity Config & Production Build Verified)
+- **Date**: 2026-10-19
+- **Architecture & Administrative Features**:
+  - **Admin Governance Route**: Built `frontend/app/(protected)/admin/mentors/page.tsx` strictly guarded by `user?.role === "ADMIN"` with fallback redirect and verification spinners.
+  - **Comprehensive 4-Tab Governance Architecture**:
+    1. **Pending Applications Tab**:
+       - Integrates `mentorService.getPendingApplications()`.
+       - Renders candidate dossiers: applicant name, email, current job title, company, years of experience, bio, requested capacity, expertise areas, and external links (LinkedIn, GitHub, Portfolio).
+       - Full inspect modal with dossier overview.
+       - Direct **Approve** action (`mentorService.approveApplication(id)`) with backend self-approval protection guard alert ("Admins cannot approve their own mentor application").
+       - Direct **Reject** action (`mentorService.rejectApplication(id, note)`) with feedback modal supporting constructive notes up to 1000 characters.
+    2. **Approved Mentors Tab**:
+       - Integrates `mentorService.getAllMentors("APPROVED")`.
+       - Real-time search filter across mentor name, email, company, job title, and expertise tags.
+       - Capacity utilization badge displaying `activeMenteesCount / maxMentees` with available slot indicators.
+       - Public profile direct deep-link navigating to `/mentorship/[id]`.
+       - Direct **Suspend Mentor** action (`mentorService.suspendMentor(id, note)`) with reason input dialog and immediate platform access revocation.
+    3. **Suspended Mentors Tab**:
+       - Integrates `mentorService.getAllMentors("SUSPENDED")`.
+       - Displays suspended mentor history, audit reason banner (`rejectionReason`), and update timestamp.
+       - Direct **Reactivate / Approve** action restoring verified mentor status and active directory placement.
+    4. **Capacity Configuration Tab**:
+       - Integrates `mentorService.getCapacityConfig()` and `mentorService.updateCapacityConfig(data)`.
+       - Live editable form for `minMentees`, `maxMentees`, and `defaultMentees`.
+       - Real-time client-side invariant validation: $1 \le \text{minMentees} \le \text{defaultMentees} \le \text{maxMentees}$.
+       - Clear explanatory guidance, reset functionality, and success toasts.
+  - **Platform Governance Integration**:
+    - Added quick-access button `"Manage Mentors 🎓"` in header banner of `/admin`.
+    - Added `"Mentor Governance 🎓"` as an active platform management module card on `/admin`.
+    - Updated `frontend/app/(protected)/layout.tsx` to add `"Mentor Governance"` to admin sidebar navigation items and mapped page title to `"Admin Mentor Governance"`.
+- **Created & Modified Files**:
+  - Created: `frontend/app/(protected)/admin/mentors/page.tsx` (administrative mentor review and capacity governance).
+  - Modified: `frontend/app/(protected)/admin/page.tsx` (added header button and active governance card linking to `/admin/mentors`).
+  - Modified: `frontend/app/(protected)/layout.tsx` (added sidebar item and page title mapping for `/admin/mentors`).
+  - Modified: `docs/PROJECT_STATUS.md` (recorded Phase 25 completion and updated next step).
+- **Verification Record**:
+  - TypeScript validation: `npx tsc --noEmit` $\rightarrow$ Passed with **0 errors**.
+  - Production build: `npm run build` (Next.js 16.2.3 with Turbopack) $\rightarrow$ **26/26 routes generated cleanly with 0 errors** (including `○ /admin/mentors`).
+
+---
 
 ## 9. Immediate Next Step
 
 ### Task
-Platform is fully live in production. Future iterations include optional custom domain binding (`careeradvisor.dev`), CDN performance tuning, and expanding interview question banks.
+Mentorship Module Phase 4: End-to-End Integration Testing & User Journey Verification.
+- Verify full multi-actor flows across student, mentor, and administrator:
+  1. Student discovers mentors, applies for mentorship with custom goals.
+  2. Professional submits mentor application with credentials and capacity preferences.
+  3. Administrator reviews, approves or rejects applicant with feedback, or adjusts capacity configuration.
+  4. Approved mentor manages incoming requests, accepts/declines, and transitions into real-time direct messaging and WebRTC calling.
+  5. Mentorship lifecycle completion and slot recycling.
 
 ### Reason
-All 16 development and deployment phases are 100% complete. Frontend, backend, database, authentication, and core domain features are active on public URLs.
+All backend and frontend components across the Mentorship Module (Phases 1, 2, 3B.1, 3B.2, 3B.3, 3B.4.1, 3B.4.2A, 3B.4.2B, and 3B.5) are completely implemented, type-checked, and production-built. System verification across the end-to-end user journeys will validate end-to-end platform readiness.
 
 ### Expected Result
-Production application remains accessible and monitored via Railway and Vercel dashboards.
+Verified end-to-end mentorship experience ready for real-world user engagement.
+
+
+
+
+
+
 
 
 

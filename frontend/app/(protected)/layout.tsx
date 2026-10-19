@@ -36,9 +36,11 @@ export default function ProtectedLayout({
     { label: "Dashboard", href: "/dashboard", icon: "📊" },
     { label: "AI Career Advisor", href: "/chat", icon: "🤖" },
     { label: "Messages", href: "/messages", icon: "💬" },
+    { label: "Mentorship", href: "/mentorship", icon: "👥" },
     ...(user?.role === "ADMIN"
       ? [
           { label: "Admin Dashboard", href: "/admin", icon: "🛡️" },
+          { label: "Mentor Governance", href: "/admin/mentors", icon: "🎓" },
           { label: "Support Inbox", href: "/admin/messages", icon: "📬" },
         ]
       : []),
@@ -55,6 +57,9 @@ export default function ProtectedLayout({
   const getPageTitle = () => {
     if (pathname.startsWith("/chat")) return "OneStop AI Career Advisor";
     if (pathname.startsWith("/messages")) return "Human Communication Center";
+    if (pathname.startsWith("/mentorship/manage")) return "Mentor Dashboard";
+    if (pathname.startsWith("/mentorship")) return "Mentorship Hub";
+    if (pathname.startsWith("/admin/mentors")) return "Admin Mentor Governance";
     if (pathname.startsWith("/admin/messages")) return "Admin Support Inbox";
     if (pathname.startsWith("/admin/users")) return "Admin User Governance";
     if (pathname.startsWith("/admin")) return "Admin Platform Governance";
@@ -203,10 +208,11 @@ export default function ProtectedLayout({
 
           <div className="flex items-center gap-3">
             <Link
-              href="/mock-interview"
-              className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition"
+              href="/mentorship"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition"
             >
-              <span>🎯 Mock Interview</span>
+              <span>👥</span>
+              <span>Find a Mentor</span>
             </Link>
 
             <Link

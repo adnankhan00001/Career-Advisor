@@ -138,6 +138,28 @@ export const API_ENDPOINTS = {
     HISTORY: `${API_BASE_URL}/api/calls/history`,
     ACTIVE: `${API_BASE_URL}/api/calls/active`,
   },
+  MENTORS: {
+    APPLY: `${API_BASE_URL}/api/mentors/apply`,
+    ME: `${API_BASE_URL}/api/mentors/me`,
+    LIST: `${API_BASE_URL}/api/mentors`,
+    DETAIL: (id: number | string) => `${API_BASE_URL}/api/mentors/${id}`,
+    CREATE_REQUEST: (mentorId: number | string) => `${API_BASE_URL}/api/mentors/${mentorId}/requests`,
+    REQUESTS_SENT: `${API_BASE_URL}/api/mentors/requests/sent`,
+    REQUESTS_RECEIVED: `${API_BASE_URL}/api/mentors/requests/received`,
+    ACCEPT_REQUEST: (requestId: number | string) => `${API_BASE_URL}/api/mentors/requests/${requestId}/accept`,
+    DECLINE_REQUEST: (requestId: number | string) => `${API_BASE_URL}/api/mentors/requests/${requestId}/decline`,
+    CANCEL_REQUEST: (requestId: number | string) => `${API_BASE_URL}/api/mentors/requests/${requestId}/cancel`,
+    COMPLETE_REQUEST: (requestId: number | string) => `${API_BASE_URL}/api/mentors/requests/${requestId}/complete`,
+    ADMIN: {
+      PENDING: `${API_BASE_URL}/api/admin/mentors/pending`,
+      LIST: `${API_BASE_URL}/api/admin/mentors`,
+      DETAIL: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}`,
+      APPROVE: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/approve`,
+      REJECT: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/reject`,
+      SUSPEND: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/suspend`,
+      CONFIG: `${API_BASE_URL}/api/admin/mentors/config`,
+    },
+  },
 };
 
 export const WEBRTC_CONFIG = {

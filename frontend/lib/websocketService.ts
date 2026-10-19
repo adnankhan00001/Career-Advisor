@@ -1,5 +1,6 @@
 import { WS_BASE_URL } from './config';
 import { RealTimeEvent } from './humanChatService';
+import { getStoredToken } from './apiClient';
 
 type EventCallback = (event: any) => void;
 
@@ -19,7 +20,7 @@ class WebSocketService {
       return;
     }
 
-    const token = localStorage.getItem('token');
+    const token = getStoredToken();
     if (!token) {
       return;
     }

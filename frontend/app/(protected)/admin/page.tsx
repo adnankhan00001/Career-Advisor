@@ -126,6 +126,13 @@ export default function AdminDashboardPage() {
               <span>Manage Users</span>
               <span>👥</span>
             </Link>
+            <Link
+              href="/admin/mentors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 text-white font-bold text-sm hover:bg-purple-700 shadow-md transition cursor-pointer"
+            >
+              <span>Manage Mentors</span>
+              <span>🎓</span>
+            </Link>
             <button
               onClick={loadStats}
               disabled={isLoadingStats}
@@ -297,6 +304,27 @@ export default function AdminDashboardPage() {
             </h3>
             <p className="text-xs text-gray-600 mt-1">
               Inspect candidate profiles, roles, skill portfolios, resume uploads, and interview history.
+            </p>
+          </Link>
+
+          {/* Active Module: Mentor Governance */}
+          <Link
+            href="/admin/mentors"
+            className="p-5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50 transition block group relative"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shadow-sm">
+                🎓
+              </span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white">
+                ACTIVE
+              </span>
+            </div>
+            <h3 className="font-bold text-gray-900 group-hover:text-emerald-700 transition text-sm">
+              Mentor Governance
+            </h3>
+            <p className="text-xs text-gray-600 mt-1">
+              Review pending mentor applications, inspect active mentors, suspend profiles, and configure platform capacity limits.
             </p>
           </Link>
 
