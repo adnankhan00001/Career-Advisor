@@ -54,13 +54,12 @@ public class AdminDataInitializer implements CommandLineRunner {
             userRepository.save(admin);
             logger.info("Administrator account initialized successfully for email: {}", normalizedEmail);
         } else {
-            // Ensure existing admin account retains ADMIN role
+            // Ensure existing admin account has synchronized credentials and ADMIN role
             userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
-                if (user.getRole() != Role.ADMIN) {
-                    user.setRole(Role.ADMIN);
-                    userRepository.save(user);
-                    logger.info("Updated role to ADMIN for configured admin account: {}", normalizedEmail);
-                }
+                user.setPassword(passwordEncoder.encode(adminPassword));
+                user.setRole(Role.ADMIN);
+                userRepository.save(user);
+                logger.info("Synchronized credentials and verified ADMIN role for: {}", normalizedEmail);
             });
         }
     }
