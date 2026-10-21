@@ -2,6 +2,7 @@ package com.careeradvisor.backend.controller;
 
 import com.careeradvisor.backend.dto.CareerGoalRequest;
 import com.careeradvisor.backend.dto.ProgressSummaryResponse;
+import com.careeradvisor.backend.dto.RecentActivityDto;
 import com.careeradvisor.backend.dto.ToggleStepRequest;
 import com.careeradvisor.backend.model.User;
 import com.careeradvisor.backend.repository.UserRepository;
@@ -33,6 +34,14 @@ public class ProgressController {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return ResponseEntity.ok(progressService.getProgressSummary(user));
+    }
+
+    @GetMapping("/recent-activity")
+    public ResponseEntity<List<RecentActivityDto>> getRecentActivity(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ResponseEntity.ok(progressService.getRecentActivities(user));
     }
 
     @GetMapping("/roadmap")

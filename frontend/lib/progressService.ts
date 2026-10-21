@@ -15,7 +15,30 @@ export interface ProgressSummary {
   skillMatchPercentage: number;
 }
 
+export interface RecentActivity {
+  id: string;
+  activityType: "ASSESSMENT" | "ROADMAP" | "INTERVIEW" | "RESUME" | "MENTORSHIP" | "PLANNER";
+  title: string;
+  subtitle: string;
+  timestamp: string;
+  actionUrl: string;
+  status: string;
+}
+
 export const progressService = {
+  async getRecentActivities(): Promise<RecentActivity[]> {
+    try {
+      const data = await apiRequest<RecentActivity[]>(
+        API_ENDPOINTS.PROGRESS.RECENT_ACTIVITY
+      );
+      if (Array.isArray(data)) {
+        return data;
+      }
+    } catch {
+      // Safe fallback
+    }
+    return [];
+  },
   async getProgressSummary(): Promise<ProgressSummary | null> {
     try {
       const summary = await apiRequest<ProgressSummary>(

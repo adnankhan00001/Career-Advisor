@@ -87,11 +87,12 @@ class MentorshipModelTests {
         assertNotNull(MentorVerificationStatus.valueOf("REJECTED"));
         assertNotNull(MentorVerificationStatus.valueOf("SUSPENDED"));
 
-        assertEquals(5, MentorshipRequestStatus.values().length);
+        assertEquals(6, MentorshipRequestStatus.values().length);
         assertNotNull(MentorshipRequestStatus.valueOf("PENDING"));
         assertNotNull(MentorshipRequestStatus.valueOf("ACCEPTED"));
         assertNotNull(MentorshipRequestStatus.valueOf("DECLINED"));
         assertNotNull(MentorshipRequestStatus.valueOf("CANCELLED"));
         assertNotNull(MentorshipRequestStatus.valueOf("COMPLETED"));
+        assertNotNull(MentorshipRequestStatus.valueOf("TERMINATED"));
     }
 }

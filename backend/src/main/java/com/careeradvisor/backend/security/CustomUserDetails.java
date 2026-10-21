@@ -2,6 +2,7 @@ package com.careeradvisor.backend.security;
 
 import com.careeradvisor.backend.model.Role;
 import com.careeradvisor.backend.model.User;
+import com.careeradvisor.backend.model.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -22,10 +23,13 @@ public class CustomUserDetails implements UserDetails {
     private final String password;
     @Getter
     private final Role role;
+    @Getter
+    private final UserStatus status;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public static CustomUserDetails build(User user) {
         Role userRole = user.getRole() != null ? user.getRole() : Role.USER;
+        UserStatus userStatus = user.getStatus() != null ? user.getStatus() : UserStatus.ACTIVE;
         Collection<GrantedAuthority> authorities = Collections.singletonList(
                 new SimpleGrantedAuthority("ROLE_" + userRole.name())
         );
@@ -36,6 +40,7 @@ public class CustomUserDetails implements UserDetails {
                 user.getEmail(),
                 user.getPassword(),
                 userRole,
+                userStatus,
                 authorities
         );
     }
@@ -62,7 +67,7 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return status != UserStatus.SUSPENDED;
     }
 
     @Override
@@ -72,6 +77,6 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return status != UserStatus.DEACTIVATED;
     }
 }

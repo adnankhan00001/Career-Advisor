@@ -12,10 +12,15 @@ import com.careeradvisor.backend.model.User;
 import com.careeradvisor.backend.repository.MentorProfileRepository;
 import com.careeradvisor.backend.repository.MentorshipRequestRepository;
 import com.careeradvisor.backend.repository.UserRepository;
+import com.careeradvisor.backend.model.AdminAuditAction;
+import com.careeradvisor.backend.model.AdminAuditTargetType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,16 +30,28 @@ public class MentorProfileService {
     private final MentorshipRequestRepository mentorshipRequestRepository;
     private final UserRepository userRepository;
     private final MentorshipCapacityConfigService capacityConfigService;
+    private final AdminAuditLogService auditLogService;
 
     public MentorProfileService(
             MentorProfileRepository mentorProfileRepository,
             MentorshipRequestRepository mentorshipRequestRepository,
             UserRepository userRepository,
             MentorshipCapacityConfigService capacityConfigService) {
+        this(mentorProfileRepository, mentorshipRequestRepository, userRepository, capacityConfigService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MentorProfileService(
+            MentorProfileRepository mentorProfileRepository,
+            MentorshipRequestRepository mentorshipRequestRepository,
+            UserRepository userRepository,
+            MentorshipCapacityConfigService capacityConfigService,
+            AdminAuditLogService auditLogService) {
         this.mentorProfileRepository = mentorProfileRepository;
         this.mentorshipRequestRepository = mentorshipRequestRepository;
         this.userRepository = userRepository;
         this.capacityConfigService = capacityConfigService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -246,36 +263,120 @@ public class MentorProfileService {
         profile.setRejectionReason(null);
 
         MentorProfile saved = mentorProfileRepository.save(profile);
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("mentorProfileId", mentorId);
+        details.put("mentorUserId", profile.getUser() != null ? profile.getUser().getId() : null);
+        details.put("mentorName", profile.getUser() != null ? profile.getUser().getName() : null);
+        details.put("mentorEmail", profile.getUser() != null ? profile.getUser().getEmail() : null);
+        details.put("jobTitle", profile.getJobTitle());
+        details.put("company", profile.getCompany());
+        details.put("maxMentees", profile.getMaxMentees());
+
+        if (auditLogService != null) {
+            auditLogService.recordAction(
+                    adminUserId,
+                    null,
+                    null,
+                    AdminAuditAction.MENTOR_APPROVED,
+                    AdminAuditTargetType.MENTOR,
+                    mentorId.toString(),
+                    "Approved mentor application for: " + (profile.getUser() != null ? profile.getUser().getName() : ("Mentor #" + mentorId)),
+                    details
+            );
+        }
+
         return mapToDto(saved);
     }
 
     @Transactional
     public MentorProfileDto rejectApplication(Long mentorId, String reason) {
+        return rejectApplication(null, mentorId, reason);
+    }
+
+    @Transactional
+    public MentorProfileDto rejectApplication(Long adminUserId, Long mentorId, String reason) {
         MentorProfile profile = mentorProfileRepository.findById(mentorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mentor profile not found with id: " + mentorId));
 
         profile.setVerificationStatus(MentorVerificationStatus.REJECTED);
-        profile.setRejectionReason(reason != null && !reason.trim().isEmpty() ? reason.trim() : "Application did not meet requirements");
+        String finalReason = reason != null && !reason.trim().isEmpty() ? reason.trim() : "Application did not meet requirements";
+        profile.setRejectionReason(finalReason);
 
         MentorProfile saved = mentorProfileRepository.save(profile);
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("mentorProfileId", mentorId);
+        details.put("mentorUserId", profile.getUser() != null ? profile.getUser().getId() : null);
+        details.put("mentorName", profile.getUser() != null ? profile.getUser().getName() : null);
+        details.put("mentorEmail", profile.getUser() != null ? profile.getUser().getEmail() : null);
+        details.put("reason", finalReason);
+
+        if (auditLogService != null) {
+            auditLogService.recordAction(
+                    adminUserId,
+                    null,
+                    null,
+                    AdminAuditAction.MENTOR_REJECTED,
+                    AdminAuditTargetType.MENTOR,
+                    mentorId.toString(),
+                    "Rejected mentor application for: " + (profile.getUser() != null ? profile.getUser().getName() : ("Mentor #" + mentorId))
+                            + (StringUtils.hasText(reason) ? " (Reason: " + reason.trim() + ")" : ""),
+                    details
+            );
+        }
+
         return mapToDto(saved);
     }
 
     @Transactional
     public MentorProfileDto suspendMentor(Long mentorId, String reason) {
+        return suspendMentor(null, mentorId, reason);
+    }
+
+    @Transactional
+    public MentorProfileDto suspendMentor(Long adminUserId, Long mentorId, String reason) {
         MentorProfile profile = mentorProfileRepository.findById(mentorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mentor profile not found with id: " + mentorId));
 
         profile.setVerificationStatus(MentorVerificationStatus.SUSPENDED);
         profile.setActive(false);
-        profile.setRejectionReason(reason != null && !reason.trim().isEmpty() ? reason.trim() : "Mentor profile suspended by administration");
+        String finalReason = reason != null && !reason.trim().isEmpty() ? reason.trim() : "Mentor profile suspended by administration";
+        profile.setRejectionReason(finalReason);
 
         MentorProfile saved = mentorProfileRepository.save(profile);
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("mentorProfileId", mentorId);
+        details.put("mentorUserId", profile.getUser() != null ? profile.getUser().getId() : null);
+        details.put("mentorName", profile.getUser() != null ? profile.getUser().getName() : null);
+        details.put("mentorEmail", profile.getUser() != null ? profile.getUser().getEmail() : null);
+        details.put("reason", finalReason);
+
+        if (auditLogService != null) {
+            auditLogService.recordAction(
+                    adminUserId,
+                    null,
+                    null,
+                    AdminAuditAction.MENTOR_SUSPENDED,
+                    AdminAuditTargetType.MENTOR,
+                    mentorId.toString(),
+                    "Suspended mentor profile for: " + (profile.getUser() != null ? profile.getUser().getName() : ("Mentor #" + mentorId))
+                            + (StringUtils.hasText(reason) ? " (Reason: " + reason.trim() + ")" : ""),
+                    details
+            );
+        }
+
         return mapToDto(saved);
     }
 
     @Transactional
     public MentorProfileDto reactivateMentor(Long mentorId) {
+        return reactivateMentor(null, mentorId);
+    }
+
+    @Transactional
+    public MentorProfileDto reactivateMentor(Long adminUserId, Long mentorId) {
         MentorProfile profile = mentorProfileRepository.findById(mentorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mentor profile not found with id: " + mentorId));
 
@@ -298,6 +399,29 @@ public class MentorProfileService {
         profile.setUpdatedAt(java.time.LocalDateTime.now());
 
         MentorProfile saved = mentorProfileRepository.save(profile);
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("mentorProfileId", mentorId);
+        details.put("mentorUserId", profile.getUser() != null ? profile.getUser().getId() : null);
+        details.put("mentorName", profile.getUser() != null ? profile.getUser().getName() : null);
+        details.put("mentorEmail", profile.getUser() != null ? profile.getUser().getEmail() : null);
+        details.put("previousStatus", "SUSPENDED");
+        details.put("newStatus", "APPROVED");
+        details.put("resolvedCapacity", resolvedCapacity);
+
+        if (auditLogService != null) {
+            auditLogService.recordAction(
+                    adminUserId,
+                    null,
+                    null,
+                    AdminAuditAction.MENTOR_REACTIVATED,
+                    AdminAuditTargetType.MENTOR,
+                    mentorId.toString(),
+                    "Reactivated mentor profile for: " + (profile.getUser() != null ? profile.getUser().getName() : ("Mentor #" + mentorId)),
+                    details
+            );
+        }
+
         return mapToDto(saved);
     }
 

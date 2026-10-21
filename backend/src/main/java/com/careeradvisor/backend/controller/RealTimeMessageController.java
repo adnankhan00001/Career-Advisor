@@ -4,6 +4,7 @@ import com.careeradvisor.backend.dto.HumanMessageRequest;
 import com.careeradvisor.backend.dto.TypingEventRequest;
 import com.careeradvisor.backend.dto.WebRtcSignalDto;
 import com.careeradvisor.backend.model.User;
+import com.careeradvisor.backend.model.UserStatus;
 import com.careeradvisor.backend.repository.UserRepository;
 import com.careeradvisor.backend.security.CustomUserDetails;
 import com.careeradvisor.backend.service.CallService;
@@ -40,7 +41,12 @@ public class RealTimeMessageController {
             UsernamePasswordAuthenticationToken auth = (UsernamePasswordAuthenticationToken) principal;
             if (auth.getPrincipal() instanceof CustomUserDetails) {
                 CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-                return userRepository.findById(userDetails.getId()).orElse(null);
+                User user = userRepository.findById(userDetails.getId()).orElse(null);
+                if (user != null && user.getStatus() == UserStatus.ACTIVE) {
+                    return user;
+                }
+                logger.warn("RealTimeMessageController rejected action: user {} is not active (status={})",
+                        userDetails.getId(), user != null ? user.getStatus() : "null");
             }
         }
         return null;

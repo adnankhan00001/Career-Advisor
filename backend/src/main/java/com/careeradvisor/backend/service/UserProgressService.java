@@ -2,11 +2,13 @@ package com.careeradvisor.backend.service;
 
 import com.careeradvisor.backend.dto.CareerDto;
 import com.careeradvisor.backend.dto.ProgressSummaryResponse;
+import com.careeradvisor.backend.dto.RecentActivityDto;
 import com.careeradvisor.backend.dto.RoadmapSectionDto;
+import com.careeradvisor.backend.model.InterviewStatus;
 import com.careeradvisor.backend.model.User;
 import com.careeradvisor.backend.model.UserRoadmapProgress;
-import com.careeradvisor.backend.repository.UserRoadmapProgressRepository;
-import com.careeradvisor.backend.repository.UserRepository;
+import com.careeradvisor.backend.repository.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,18 @@ public class UserProgressService {
     private final RoadmapService roadmapService;
     private final CareerService careerService;
     private final UserSkillService skillService;
+
+    @Autowired(required = false)
+    private QuizAttemptRepository quizAttemptRepository;
+
+    @Autowired(required = false)
+    private MockInterviewRepository interviewRepository;
+
+    @Autowired(required = false)
+    private ResumeRepository resumeRepository;
+
+    @Autowired(required = false)
+    private MentorshipRequestRepository mentorshipRequestRepository;
 
     public UserProgressService(UserRoadmapProgressRepository progressRepository,
                                UserRepository userRepository,
@@ -138,5 +152,99 @@ public class UserProgressService {
                 .nextTopicToLearn(nextTopic)
                 .skillMatchPercentage(matchPercentage)
                 .build();
+    }
+
+    public List<RecentActivityDto> getRecentActivities(User user) {
+        List<RecentActivityDto> activities = new ArrayList<>();
+
+        // 1. Diagnostic Assessments
+        if (quizAttemptRepository != null) {
+            quizAttemptRepository.findByUserOrderByCreatedAtDesc(user).stream()
+                    .limit(2)
+                    .forEach(q -> activities.add(RecentActivityDto.builder()
+                            .id("quiz-" + q.getId())
+                            .activityType("ASSESSMENT")
+                            .title("Completed Diagnostic Assessment")
+                            .subtitle("Score: " + q.getPercentage() + "% (" + q.getScore() + "/" + q.getTotalQuestions() + ") • " + q.getLevel() + " Tier")
+                            .timestamp(q.getCreatedAt())
+                            .actionUrl("/quiz")
+                            .status("COMPLETED")
+                            .build()));
+        }
+
+        // 2. Technical Mock Interviews
+        if (interviewRepository != null) {
+            interviewRepository.findByUserOrderByStartedAtDesc(user).stream()
+                    .limit(2)
+                    .forEach(i -> activities.add(RecentActivityDto.builder()
+                            .id("interview-" + i.getId())
+                            .activityType("INTERVIEW")
+                            .title("Mock Interview: " + (i.getCategory() != null ? i.getCategory().name() : "Technical"))
+                            .subtitle(i.getStatus() == InterviewStatus.COMPLETED
+                                    ? "Score: " + i.getScore() + "% • " + (i.getDifficulty() != null ? i.getDifficulty().name() : "Standard")
+                                    : "Status: " + i.getStatus().name())
+                            .timestamp(i.getCompletedAt() != null ? i.getCompletedAt() : i.getStartedAt())
+                            .actionUrl("/mock-interview")
+                            .status(i.getStatus().name())
+                            .build()));
+        }
+
+        // 3. Resume Upload & Analysis
+        if (resumeRepository != null) {
+            resumeRepository.findFirstByUserOrderByUploadTimestampDesc(user).ifPresent(r -> {
+                activities.add(RecentActivityDto.builder()
+                        .id("resume-" + r.getId())
+                        .activityType("RESUME")
+                        .title("Resume Analyzed: " + r.getOriginalFileName())
+                        .subtitle("Extracted Skills & Career Alignment Verified")
+                        .timestamp(r.getUploadTimestamp())
+                        .actionUrl("/resume")
+                        .status(r.getParsingStatus() != null ? r.getParsingStatus().name() : "COMPLETED")
+                        .build());
+            });
+        }
+
+        // 4. Completed Roadmap Milestones
+        if (progressRepository != null) {
+            progressRepository.findByUser(user).stream()
+                    .filter(p -> p.getCompletedAt() != null)
+                    .sorted(Comparator.comparing(UserRoadmapProgress::getCompletedAt).reversed())
+                    .limit(2)
+                    .forEach(p -> activities.add(RecentActivityDto.builder()
+                            .id("roadmap-" + p.getId())
+                            .activityType("ROADMAP")
+                            .title("Mastered Milestone: " + p.getStepTitle())
+                            .subtitle("Curriculum Track: " + p.getCareerTitle())
+                            .timestamp(p.getCompletedAt())
+                            .actionUrl("/roadmap")
+                            .status("COMPLETED")
+                            .build()));
+        }
+
+        // 5. Mentorship Interaction
+        if (mentorshipRequestRepository != null) {
+            mentorshipRequestRepository.findByStudentIdOrderByCreatedAtDesc(user.getId()).stream()
+                    .limit(2)
+                    .forEach(m -> {
+                        String mentorName = (m.getMentor() != null && m.getMentor().getUser() != null)
+                                ? m.getMentor().getUser().getName() : "Industry Mentor";
+                        activities.add(RecentActivityDto.builder()
+                                .id("mentor-req-" + m.getId())
+                                .activityType("MENTORSHIP")
+                                .title("Mentorship Request: " + mentorName)
+                                .subtitle("Status: " + m.getStatus().name())
+                                .timestamp(m.getUpdatedAt() != null ? m.getUpdatedAt() : m.getCreatedAt())
+                                .actionUrl("/mentorship")
+                                .status(m.getStatus().name())
+                                .build());
+                    });
+        }
+
+        // Sort by timestamp descending and take top 4
+        return activities.stream()
+                .filter(a -> a.getTimestamp() != null)
+                .sorted(Comparator.comparing(RecentActivityDto::getTimestamp).reversed())
+                .limit(4)
+                .collect(Collectors.toList());
     }
 }

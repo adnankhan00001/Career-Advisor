@@ -16,11 +16,17 @@ export default function ProtectedLayout({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const isAdminRoute = pathname.startsWith("/admin");
+
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/login");
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.replace("/login");
+      } else if (isAdminRoute && user?.role !== "ADMIN") {
+        router.replace("/dashboard");
+      }
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, isAdminRoute, user?.role, router]);
 
   // Close mobile menu whenever route changes
   useEffect(() => {
@@ -40,7 +46,11 @@ export default function ProtectedLayout({
     ...(user?.role === "ADMIN"
       ? [
           { label: "Admin Dashboard", href: "/admin", icon: "🛡️" },
+          { label: "User Governance", href: "/admin/users", icon: "👥" },
           { label: "Mentor Governance", href: "/admin/mentors", icon: "🎓" },
+          { label: "Mentorship Oversight", href: "/admin/mentorships", icon: "🤝" },
+          { label: "Audit Logs", href: "/admin/audit-logs", icon: "📋" },
+          { label: "Settings", href: "/admin/settings", icon: "⚙️" },
           { label: "Support Inbox", href: "/admin/messages", icon: "📬" },
         ]
       : []),
@@ -59,7 +69,10 @@ export default function ProtectedLayout({
     if (pathname.startsWith("/messages")) return "Human Communication Center";
     if (pathname.startsWith("/mentorship/manage")) return "Mentor Dashboard";
     if (pathname.startsWith("/mentorship")) return "Mentorship Hub";
+    if (pathname.startsWith("/admin/mentorships")) return "Admin Mentorship Oversight";
     if (pathname.startsWith("/admin/mentors")) return "Admin Mentor Governance";
+    if (pathname.startsWith("/admin/audit-logs")) return "Admin Audit Logs";
+    if (pathname.startsWith("/admin/settings")) return "Admin Platform Settings";
     if (pathname.startsWith("/admin/messages")) return "Admin Support Inbox";
     if (pathname.startsWith("/admin/users")) return "Admin User Governance";
     if (pathname.startsWith("/admin")) return "Admin Platform Governance";
@@ -85,6 +98,16 @@ export default function ProtectedLayout({
 
   if (!isAuthenticated) {
     return null;
+  }
+
+  // Prevent rendering sensitive admin content before authorization is established
+  if (isAdminRoute && user?.role !== "ADMIN") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500 gap-3">
+        <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium">Verifying administrator authorization...</p>
+      </div>
+    );
   }
 
   const displayName = user?.name || "Learner";
@@ -133,8 +156,8 @@ export default function ProtectedLayout({
           <nav className="mt-6 space-y-1.5">
             {navItems.map((item) => {
               const isActive =
-                item.href === "/dashboard"
-                  ? pathname === "/dashboard"
+                item.href === "/dashboard" || item.href === "/admin" || item.href === "/mentorship"
+                  ? pathname === item.href
                   : pathname.startsWith(item.href);
 
               return (

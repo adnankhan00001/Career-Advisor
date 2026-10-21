@@ -27,11 +27,34 @@ export interface AdminStatsOverview {
   userLevelDistribution: Record<string, number>;
 }
 
+export interface PaginatedResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface AdminUserQueryParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  search?: string;
+  role?: string;
+  status?: string;
+}
+
 export interface AdminUser {
   id: number;
   name: string;
   email: string;
   role: "USER" | "ADMIN" | string;
+  status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED" | string;
+  suspensionReason?: string;
+  suspendedAt?: string;
+  createdAt?: string;
   careerGoal?: string;
   userLevel?: string;
   latestQuizScore?: string;
@@ -46,6 +69,11 @@ export interface AdminUserDetail {
   name: string;
   email: string;
   role: "USER" | "ADMIN" | string;
+  status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED" | string;
+  suspensionReason?: string;
+  suspendedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   careerGoal?: string;
   userLevel?: string;
   latestQuizScore?: string;
@@ -57,6 +85,11 @@ export interface AdminUserDetail {
   averageInterviewScore?: number;
   solvedProblemsCount: number;
   completedRoadmapStepsCount: number;
+}
+
+export interface UpdateUserStatusPayload {
+  status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
+  reason?: string;
 }
 
 export async function getAdminProfile(): Promise<AdminProfile> {
@@ -71,13 +104,40 @@ export async function getAdminStatsOverview(): Promise<AdminStatsOverview> {
   return apiRequest<AdminStatsOverview>(API_ENDPOINTS.ADMIN.STATS_OVERVIEW);
 }
 
-export async function getAdminUsers(search?: string): Promise<AdminUser[]> {
-  const url = search
-    ? `${API_ENDPOINTS.ADMIN.USERS}?search=${encodeURIComponent(search)}`
-    : API_ENDPOINTS.ADMIN.USERS;
-  return apiRequest<AdminUser[]>(url);
+export async function getAdminUsers(
+  params?: AdminUserQueryParams | string
+): Promise<PaginatedResponse<AdminUser>> {
+  const query = new URLSearchParams();
+
+  if (typeof params === "string") {
+    if (params.trim()) query.set("search", params.trim());
+  } else if (params) {
+    if (params.page !== undefined) query.set("page", params.page.toString());
+    if (params.size !== undefined) query.set("size", params.size.toString());
+    if (params.sort) query.set("sort", params.sort);
+    if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    if (params.role && params.role !== "ALL") query.set("role", params.role);
+    if (params.status && params.status !== "ALL") query.set("status", params.status);
+  }
+
+  const qs = query.toString();
+  const url = qs ? `${API_ENDPOINTS.ADMIN.USERS}?${qs}` : API_ENDPOINTS.ADMIN.USERS;
+  return apiRequest<PaginatedResponse<AdminUser>>(url);
 }
 
 export async function getAdminUserDetail(id: number): Promise<AdminUserDetail> {
   return apiRequest<AdminUserDetail>(API_ENDPOINTS.ADMIN.USER_DETAIL(id));
+}
+
+export async function updateUserStatus(
+  id: number,
+  payload: UpdateUserStatusPayload
+): Promise<AdminUserDetail> {
+  return apiRequest<AdminUserDetail>(API_ENDPOINTS.ADMIN.USER_STATUS(id), {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 }

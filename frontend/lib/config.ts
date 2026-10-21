@@ -36,6 +36,7 @@ export const API_ENDPOINTS = {
   },
   PROGRESS: {
     SUMMARY: `${API_BASE_URL}/api/progress/summary`,
+    RECENT_ACTIVITY: `${API_BASE_URL}/api/progress/recent-activity`,
     ROADMAP: `${API_BASE_URL}/api/progress/roadmap`,
     TOGGLE: `${API_BASE_URL}/api/progress/roadmap/toggle`,
     CAREER_GOAL: `${API_BASE_URL}/api/progress/career-goal`,
@@ -80,6 +81,20 @@ export const API_ENDPOINTS = {
     STATS_OVERVIEW: `${API_BASE_URL}/api/admin/stats/overview`,
     USERS: `${API_BASE_URL}/api/admin/users`,
     USER_DETAIL: (id: number | string) => `${API_BASE_URL}/api/admin/users/${id}`,
+    USER_STATUS: (id: number | string) => `${API_BASE_URL}/api/admin/users/${id}/status`,
+    MENTORSHIP_SUMMARY: `${API_BASE_URL}/api/admin/mentorships/summary`,
+    MENTORSHIP_LIST: `${API_BASE_URL}/api/admin/mentorships`,
+    MENTORSHIP_DETAIL: (id: number | string) => `${API_BASE_URL}/api/admin/mentorships/${id}`,
+    MENTORSHIP_TERMINATE: (id: number | string) => `${API_BASE_URL}/api/admin/mentorships/${id}/terminate`,
+    ANALYTICS: {
+      USERS: `${API_BASE_URL}/api/admin/analytics/users`,
+      CAREER_PREPARATION: `${API_BASE_URL}/api/admin/analytics/career-preparation`,
+      MENTORSHIP: `${API_BASE_URL}/api/admin/analytics/mentorship`,
+    },
+    AUDIT_LOGS: `${API_BASE_URL}/api/admin/audit-logs`,
+    AUDIT_SUMMARY: `${API_BASE_URL}/api/admin/audit-logs/summary`,
+    AUDIT_DETAIL: (id: number | string) => `${API_BASE_URL}/api/admin/audit-logs/${id}`,
+    SETTINGS: `${API_BASE_URL}/api/admin/settings`,
   },
   AI: {
     HEALTH: `${API_BASE_URL}/api/ai/health`,

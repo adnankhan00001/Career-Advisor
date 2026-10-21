@@ -3,10 +3,15 @@ package com.careeradvisor.backend.controller;
 import com.careeradvisor.backend.dto.AdminStatsOverviewDto;
 import com.careeradvisor.backend.dto.AdminUserDetailDto;
 import com.careeradvisor.backend.dto.AdminUserDto;
+import com.careeradvisor.backend.dto.PageResponse;
+import com.careeradvisor.backend.dto.UpdateUserStatusRequest;
+import com.careeradvisor.backend.model.Role;
 import com.careeradvisor.backend.model.User;
+import com.careeradvisor.backend.model.UserStatus;
 import com.careeradvisor.backend.security.CustomUserDetails;
 import com.careeradvisor.backend.service.AdminService;
 import com.careeradvisor.backend.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,11 +21,11 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     @Autowired
@@ -64,8 +69,15 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ResponseEntity<List<AdminUserDto>> getAllUsers(@RequestParam(value = "search", required = false) String search) {
-        List<AdminUserDto> users = adminService.getAllUsers(search);
+    public ResponseEntity<PageResponse<AdminUserDto>> getUsers(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", defaultValue = "createdAt,desc") String sort,
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "role", required = false) Role role,
+            @RequestParam(value = "status", required = false) UserStatus status
+    ) {
+        PageResponse<AdminUserDto> users = adminService.getUsers(page, size, sort, search, role, status);
         return ResponseEntity.ok(users);
     }
 
@@ -73,5 +85,23 @@ public class AdminController {
     public ResponseEntity<AdminUserDetailDto> getUserDetail(@PathVariable("id") Long id) {
         AdminUserDetailDto userDetail = adminService.getUserDetail(id);
         return ResponseEntity.ok(userDetail);
+    }
+
+    @PatchMapping("/users/{id}/status")
+    public ResponseEntity<AdminUserDetailDto> updateUserStatus(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateUserStatusRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        Long adminUserId = null;
+        if (userDetails instanceof CustomUserDetails) {
+            adminUserId = ((CustomUserDetails) userDetails).getId();
+        } else if (userDetails != null) {
+            User admin = userService.getUserByEmail(userDetails.getUsername());
+            adminUserId = admin.getId();
+        }
+
+        AdminUserDetailDto updatedUser = adminService.updateUserStatus(adminUserId, id, request);
+        return ResponseEntity.ok(updatedUser);
     }
 }

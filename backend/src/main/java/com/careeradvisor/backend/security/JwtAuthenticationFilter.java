@@ -38,6 +38,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String email = jwtUtils.extractEmail(jwt);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                if (!userDetails.isAccountNonLocked()) {
+                    logger.warn("Request rejected: User {} account is suspended", email);
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\",\"message\":\"Your account has been suspended. Please contact administrator.\"}");
+                    return;
+                }
+                if (!userDetails.isEnabled()) {
+                    logger.warn("Request rejected: User {} account is deactivated", email);
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\",\"message\":\"Your account has been deactivated.\"}");
+                    return;
+                }
+
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 userDetails,

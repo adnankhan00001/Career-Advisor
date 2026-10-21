@@ -40,4 +40,7 @@ public interface UserProblemProgressRepository extends JpaRepository<UserProblem
     int countByUserAndTopicAndSolvedTrue(@Param("user") User user, @Param("topic") String topic);
 
     void deleteByUser(User user);
+
+    @Query("SELECT pp.user.id, COUNT(pp) FROM UserProblemProgress pp WHERE pp.user.id IN :userIds AND pp.solved = true GROUP BY pp.user.id")
+    List<Object[]> countSolvedProblemsByUserIds(@Param("userIds") List<Long> userIds);
 }

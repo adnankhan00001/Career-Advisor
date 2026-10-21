@@ -470,6 +470,10 @@ public class ConversationService {
     // ================================================================
 
     private void validateHumanConversationAccess(Conversation conversation, User user) {
+        if (user.getStatus() != null && user.getStatus() != UserStatus.ACTIVE) {
+            throw new IllegalArgumentException("User account is " + user.getStatus().name().toLowerCase() + " and cannot access conversations");
+        }
+
         if (conversation.getType() == ConversationType.USER_TO_ADMIN) {
             if (user.getRole() == Role.ADMIN) {
                 return; // Admin permitted to access support conversations

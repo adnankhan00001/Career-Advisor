@@ -59,25 +59,32 @@ public class AdminMentorController {
 
     @PatchMapping("/{mentorId}/reject")
     public ResponseEntity<MentorProfileDto> rejectApplication(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long mentorId,
             @RequestBody(required = false) MentorshipActionDto dto) {
+        Long adminUserId = userDetails != null ? userDetails.getId() : null;
         String reason = dto != null ? dto.getNote() : null;
-        MentorProfileDto rejected = mentorProfileService.rejectApplication(mentorId, reason);
+        MentorProfileDto rejected = mentorProfileService.rejectApplication(adminUserId, mentorId, reason);
         return ResponseEntity.ok(rejected);
     }
 
     @PatchMapping("/{mentorId}/suspend")
     public ResponseEntity<MentorProfileDto> suspendMentor(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long mentorId,
             @RequestBody(required = false) MentorshipActionDto dto) {
+        Long adminUserId = userDetails != null ? userDetails.getId() : null;
         String reason = dto != null ? dto.getNote() : null;
-        MentorProfileDto suspended = mentorProfileService.suspendMentor(mentorId, reason);
+        MentorProfileDto suspended = mentorProfileService.suspendMentor(adminUserId, mentorId, reason);
         return ResponseEntity.ok(suspended);
     }
 
     @PatchMapping("/{mentorId}/reactivate")
-    public ResponseEntity<MentorProfileDto> reactivateMentor(@PathVariable Long mentorId) {
-        MentorProfileDto reactivated = mentorProfileService.reactivateMentor(mentorId);
+    public ResponseEntity<MentorProfileDto> reactivateMentor(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long mentorId) {
+        Long adminUserId = userDetails != null ? userDetails.getId() : null;
+        MentorProfileDto reactivated = mentorProfileService.reactivateMentor(adminUserId, mentorId);
         return ResponseEntity.ok(reactivated);
     }
 
@@ -88,8 +95,10 @@ public class AdminMentorController {
 
     @PutMapping("/config")
     public ResponseEntity<MentorshipCapacityConfigDto> updateCapacityConfig(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody MentorshipCapacityConfigDto dto) {
-        MentorshipCapacityConfigDto updated = capacityConfigService.updateConfig(dto);
+        Long adminUserId = userDetails != null ? userDetails.getId() : null;
+        MentorshipCapacityConfigDto updated = capacityConfigService.updateConfig(adminUserId, dto);
         return ResponseEntity.ok(updated);
     }
 }

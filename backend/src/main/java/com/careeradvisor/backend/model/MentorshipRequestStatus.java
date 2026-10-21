@@ -5,5 +5,6 @@ public enum MentorshipRequestStatus {
     ACCEPTED,
     DECLINED,
     CANCELLED,
-    COMPLETED
+    COMPLETED,
+    TERMINATED
 }

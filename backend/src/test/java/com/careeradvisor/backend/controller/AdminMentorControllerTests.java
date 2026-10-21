@@ -128,7 +128,7 @@ class AdminMentorControllerTests {
                 .rejectionReason("Insufficient experience")
                 .build();
 
-        when(mentorProfileService.rejectApplication(eq(15L), eq("Insufficient experience"))).thenReturn(rejected);
+        when(mentorProfileService.rejectApplication(eq(1L), eq(15L), eq("Insufficient experience"))).thenReturn(rejected);
 
         MentorshipActionDto action = new MentorshipActionDto("Insufficient experience");
 
@@ -162,7 +162,7 @@ class AdminMentorControllerTests {
     @DisplayName("PUT /api/admin/mentors/config updates capacity limits")
     void testUpdateCapacityConfig() throws Exception {
         MentorshipCapacityConfigDto input = new MentorshipCapacityConfigDto(2, 8, 4);
-        when(capacityConfigService.updateConfig(any(MentorshipCapacityConfigDto.class))).thenReturn(input);
+        when(capacityConfigService.updateConfig(eq(1L), any(MentorshipCapacityConfigDto.class))).thenReturn(input);
 
         mockMvc.perform(put("/api/admin/mentors/config")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -183,7 +183,7 @@ class AdminMentorControllerTests {
                 .isActive(true)
                 .build();
 
-        when(mentorProfileService.reactivateMentor(eq(15L))).thenReturn(reactivated);
+        when(mentorProfileService.reactivateMentor(eq(1L), eq(15L))).thenReturn(reactivated);
 
         mockMvc.perform(patch("/api/admin/mentors/15/reactivate"))
                 .andExpect(status().isOk())

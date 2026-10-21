@@ -32,6 +32,11 @@ public interface MentorProfileRepository extends JpaRepository<MentorProfile, Lo
 
     long countByVerificationStatus(MentorVerificationStatus verificationStatus);
 
+    long countByVerificationStatusAndIsActiveTrue(MentorVerificationStatus verificationStatus);
+
+    @Query("SELECT COALESCE(SUM(m.maxMentees), 0) FROM MentorProfile m WHERE m.verificationStatus = :status AND m.isActive = true")
+    long sumMaxMenteesByVerificationStatusAndIsActiveTrue(@Param("status") MentorVerificationStatus status);
+
     @Query("SELECT m FROM MentorProfile m WHERE m.verificationStatus = :status AND m.isActive = true " +
            "AND (LOWER(m.jobTitle) LIKE LOWER(CONCAT('%', :query, '%')) " +
            "OR LOWER(m.company) LIKE LOWER(CONCAT('%', :query, '%')) " +
