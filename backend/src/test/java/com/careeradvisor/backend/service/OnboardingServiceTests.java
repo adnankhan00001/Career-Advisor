@@ -39,6 +39,9 @@ class OnboardingServiceTests {
     private UserRoadmapProgressRepository userRoadmapProgressRepository;
 
     @Mock
+    private PersonalizedRoadmapRepository personalizedRoadmapRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -137,8 +140,8 @@ class OnboardingServiceTests {
     }
 
     @Test
-    @DisplayName("Returning user with completed roadmap progress bypasses onboarding")
-    void testReturningUserWithRoadmapProgressBypassesOnboarding() {
+    @DisplayName("Returning user with active personalized roadmap marks roadmap generated")
+    void testReturningUserWithPersonalizedRoadmapMarksRoadmapGenerated() {
         StudentOnboarding existing = StudentOnboarding.builder()
                 .id(51L)
                 .user(student)
@@ -146,8 +149,15 @@ class OnboardingServiceTests {
                 .hasPersonalizedRoadmap(false)
                 .build();
 
+        PersonalizedRoadmap activeRoadmap = PersonalizedRoadmap.builder()
+                .id(101L)
+                .user(student)
+                .status("ACTIVE")
+                .build();
+
         when(studentOnboardingRepository.findByUserIdWithCareerAndTech(student.getId())).thenReturn(Optional.of(existing));
-        when(userRoadmapProgressRepository.countByUser(student)).thenReturn(5L);
+        when(personalizedRoadmapRepository.findFirstByUserAndStatusOrderByCreatedAtDesc(student, "ACTIVE"))
+                .thenReturn(Optional.of(activeRoadmap));
         when(studentOnboardingRepository.save(any(StudentOnboarding.class))).thenAnswer(i -> i.getArgument(0));
 
         OnboardingStateDto result = onboardingService.getOnboardingState(student);

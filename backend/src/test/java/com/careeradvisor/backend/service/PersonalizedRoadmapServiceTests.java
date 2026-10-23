@@ -205,6 +205,24 @@ class PersonalizedRoadmapServiceTests {
     }
 
     @Test
+    @DisplayName("Generate roadmap throws IllegalStateException when user has no selected career")
+    void testGenerateRoadmapWithoutSelectedCareerThrowsIllegalStateException() {
+        User unassignedUser = User.builder()
+                .id(99L)
+                .name("Unassigned User")
+                .email("unassigned@test.com")
+                .careerGoal(null)
+                .build();
+
+        when(personalizedRoadmapRepository.findFirstByUserAndStatusOrderByCreatedAtDesc(unassignedUser, "ACTIVE"))
+                .thenReturn(Optional.empty());
+        when(studentOnboardingRepository.findByUserIdWithCareerAndTech(unassignedUser.getId()))
+                .thenReturn(Optional.empty());
+
+        assertThrows(IllegalStateException.class, () -> roadmapService.generateRoadmap(unassignedUser, false));
+    }
+
+    @Test
     @DisplayName("Topologically sorts competencies respecting prerequisite dependencies")
     void testSortCompetenciesTopologically() {
         // compJavaOop depends on compJavaSyntax

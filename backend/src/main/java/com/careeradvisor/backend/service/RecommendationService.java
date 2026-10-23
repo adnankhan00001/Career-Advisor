@@ -45,7 +45,7 @@ public class RecommendationService {
 
         List<String> userSkills = userSkillService.getUserSkills(user);
         String targetGoal = user.getCareerGoal() != null && !user.getCareerGoal().trim().isEmpty()
-                ? user.getCareerGoal() : "Java Backend Developer";
+                ? user.getCareerGoal().trim() : null;
 
         QuizAttempt latestQuiz = quizService.getLatestAttempt(user).orElse(null);
         ProgressSummaryResponse roadmapSummary = userProgressService.getProgressSummary(user);
@@ -68,10 +68,16 @@ public class RecommendationService {
 
         // 1. Career Matches
         List<CareerMatchDto> careerMatches = calculateCareerMatches(allCareers, userSkills, targetGoal, latestQuiz);
-        CareerDto targetCareer = allCareers.stream()
-                .filter(c -> c.getTitle().equalsIgnoreCase(targetGoal))
-                .findFirst()
-                .orElse(allCareers.get(0));
+        CareerDto targetCareer = null;
+        if (targetGoal != null) {
+            targetCareer = allCareers.stream()
+                    .filter(c -> c.getTitle().equalsIgnoreCase(targetGoal))
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (targetCareer == null && !allCareers.isEmpty()) {
+            targetCareer = allCareers.get(0);
+        }
 
         // 2. Skill Gap Analysis
         SkillGapDto skillGaps = calculateSkillGaps(targetCareer, userSkills);
@@ -522,25 +528,26 @@ public class RecommendationService {
     }
 
     private PersonalizedIntelligenceResponse buildNewUserIntelligence(User user, String targetGoal) {
+        String effectiveGoal = targetGoal != null ? targetGoal : "No Career Selected";
         return PersonalizedIntelligenceResponse.builder()
                 .userState("ONBOARDING")
                 .summaryHeadline("Welcome " + (user.getName() != null ? user.getName() : "Explorer") +
-                        "! Complete these 4 setup steps to generate your personalized career plan.")
+                        "! Complete setup to generate your personalized career plan.")
                 .careerGoal(targetGoal)
                 .overallReadinessScore(0)
                 .careerMatches(Collections.emptyList())
                 .skillGaps(SkillGapDto.builder()
-                        .targetCareer(targetGoal)
+                        .targetCareer(effectiveGoal)
                         .acquiredSkills(Collections.emptyList())
                         .missingSkills(List.of("Java", "Spring Boot", "MySQL", "Git"))
                         .highPriorityMissing(List.of("Java", "Spring Boot"))
                         .matchPercentage(0)
                         .build())
                 .nextRoadmapAction(RoadmapActionDto.builder()
-                        .careerTitle(targetGoal)
-                        .nextTopic("Language Syntax & Basics")
+                        .careerTitle(effectiveGoal)
+                        .nextTopic(targetGoal != null ? "Language Syntax & Basics" : "Select Career Track")
                         .sectionTitle("Stage 1: Foundations")
-                        .reason("Begin your learning journey by marking milestone steps in your roadmap.")
+                        .reason(targetGoal != null ? "Begin your learning journey by marking milestone steps in your roadmap." : "Visit Career Catalog to choose your career track and generate a personalized roadmap.")
                         .totalTopics(10)
                         .completedTopics(0)
                         .progressPercentage(0)

@@ -80,19 +80,19 @@ export default function Dashboard() {
 
   // Student Identity & Target Goal
   const displayName = user?.name || "Explorer";
-  const careerGoal = summary?.careerGoal || "Java Backend Developer";
-  const userLevel = summary?.userLevel || "Intermediate";
+  const careerGoal = summary?.careerGoal || null;
+  const userLevel = summary?.userLevel || "Beginner";
   const skills = useMemo(() => summary?.skills || [], [summary]);
 
   // Target Career Specs & Skill Alignment
-  const targetCareer = useMemo(() => careersData.find((c) => c.title === careerGoal), [careerGoal]);
+  const targetCareer = useMemo(() => careerGoal ? careersData.find((c) => c.title === careerGoal) : null, [careerGoal]);
   const skillMatch = useMemo(() => {
     if (!targetCareer) return { percentage: 0, matchedSkills: [], missingSkills: [] };
     return calculateSkillMatch(skills, targetCareer.requiredSkills);
   }, [skills, targetCareer]);
 
   // Roadmap Progress Computations
-  const activeRoadmap = useMemo(() => roadmapData[careerGoal] || Object.values(roadmapData)[0], [careerGoal]);
+  const activeRoadmap = useMemo(() => careerGoal ? (roadmapData[careerGoal] || null) : null, [careerGoal]);
   const totalRoadmapSteps = useMemo(() => {
     if (summary?.totalStepsCount && summary.totalStepsCount > 0) return summary.totalStepsCount;
     return activeRoadmap ? activeRoadmap.reduce((acc, sec) => acc + sec.steps.length, 0) : 0;
@@ -197,11 +197,12 @@ export default function Dashboard() {
 
     if (roadmapPercent < 100) {
       const nextTopic = summary?.nextTopicToLearn || "Next Topic Milestone";
+      const goalName = careerGoal || "career";
       return {
         title: `Advance Roadmap: ${nextTopic}`,
-        explanation: `Continue progress on the ${careerGoal} curriculum by mastering your next scheduled roadmap topic.`,
-        reasoning: `Completing core roadmap topics systematically bridges gaps toward your target ${careerGoal} role.`,
-        actionUrl: `/roadmap?career=${encodeURIComponent(careerGoal)}`,
+        explanation: `Continue progress on the ${goalName} curriculum by mastering your next scheduled roadmap topic.`,
+        reasoning: `Completing core roadmap topics systematically bridges gaps toward your target ${goalName} role.`,
+        actionUrl: careerGoal ? `/roadmap?career=${encodeURIComponent(careerGoal)}` : "/careers",
         badge: "Curriculum Progress",
       };
     }
@@ -265,7 +266,9 @@ export default function Dashboard() {
     items.push({
       label: "Target Role Alignment",
       value: `${skillMatch.percentage}%`,
-      detail: `${skillMatch.matchedSkills.length} matched, ${skillMatch.missingSkills.length} missing for ${careerGoal}`,
+      detail: careerGoal
+        ? `${skillMatch.matchedSkills.length} matched, ${skillMatch.missingSkills.length} missing for ${careerGoal}`
+        : "Select a career track in the Career Catalog to calculate skill alignment",
       progress: skillMatch.percentage,
       highlight: true,
     });
@@ -285,7 +288,7 @@ export default function Dashboard() {
   const roadmapBreakdown: BreakdownItem[] = useMemo(() => [
     {
       label: "Active Career Track",
-      value: careerGoal,
+      value: careerGoal || "No Career Track Selected",
       detail: "Curriculum customized to this industry role",
     },
     {
@@ -358,7 +361,7 @@ export default function Dashboard() {
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-              {careerGoal} Track
+              {careerGoal ? `${careerGoal} Track` : "No Career Selected"}
             </span>
             {userLevel && (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
@@ -475,7 +478,7 @@ export default function Dashboard() {
               )}
             </div>
             <p className="text-xs text-gray-500 mt-1 truncate">
-              {loading ? "Matching target..." : `${skillMatch.percentage}% match for ${careerGoal}`}
+              {loading ? "Matching target..." : (careerGoal ? `${skillMatch.percentage}% match for ${careerGoal}` : "Choose a Career Track")}
             </p>
           </div>
           <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mt-3">
@@ -646,15 +649,15 @@ export default function Dashboard() {
                 Career Track Overview
               </span>
               <h2 className="text-lg font-bold text-gray-900 mt-0.5">
-                {careerGoal}
+                {careerGoal || "No Career Track Selected"}
               </h2>
             </div>
             <div className="flex items-center gap-2">
               <Link
-                href={`/roadmap?career=${encodeURIComponent(careerGoal)}`}
+                href={careerGoal ? `/roadmap?career=${encodeURIComponent(careerGoal)}` : "/careers"}
                 className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
               >
-                View Full Roadmap →
+                {careerGoal ? "View Full Roadmap →" : "Select Career Track →"}
               </Link>
               <span className="text-gray-300">•</span>
               <Link
@@ -714,10 +717,10 @@ export default function Dashboard() {
               </p>
             </div>
             <Link
-              href={`/roadmap?career=${encodeURIComponent(careerGoal)}`}
+              href={careerGoal ? `/roadmap?career=${encodeURIComponent(careerGoal)}` : "/careers"}
               className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition whitespace-nowrap shadow-xs text-center focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
-              Continue Topic →
+              {careerGoal ? "Continue Topic →" : "Choose Career →"}
             </Link>
           </div>
         </div>
@@ -836,7 +839,7 @@ export default function Dashboard() {
         title="Skills Acquired Portfolio"
         value={skills.length}
         badge={{
-          text: `${skillMatch.percentage}% Match for ${careerGoal}`,
+          text: careerGoal ? `${skillMatch.percentage}% Match for ${careerGoal}` : "No Career Selected",
           colorClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
         }}
         explanation="This metric represents the count of distinct, verified technical competencies logged in your portfolio. These competencies are evaluated against the prerequisite standards required for your chosen career track."
@@ -864,7 +867,7 @@ export default function Dashboard() {
         breakdownItems={roadmapBreakdown}
         primaryAction={{
           label: "Open Full Roadmap →",
-          href: `/roadmap?career=${encodeURIComponent(careerGoal)}`,
+          href: careerGoal ? `/roadmap?career=${encodeURIComponent(careerGoal)}` : "/careers",
         }}
       />
 

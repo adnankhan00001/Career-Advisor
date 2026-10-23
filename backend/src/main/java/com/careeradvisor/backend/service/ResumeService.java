@@ -189,7 +189,7 @@ public class ResumeService {
         for (ExtractedSkillDto dto : extractedSkills) combinedSkills.add(dto.getSkillName().toLowerCase());
 
         String targetGoal = user.getCareerGoal() != null && !user.getCareerGoal().trim().isEmpty()
-                ? user.getCareerGoal() : "Java Backend Developer";
+                ? user.getCareerGoal().trim() : null;
 
         List<CareerDto> allCareers = careerService.getAllCareers();
 
@@ -209,7 +209,7 @@ public class ResumeService {
 
             int total = career.getRequiredSkills().size();
             int matchScore = total > 0 ? Math.round(((float) matched.size() / total) * 100) : 0;
-            boolean isTarget = career.getTitle().equalsIgnoreCase(targetGoal);
+            boolean isTarget = targetGoal != null && career.getTitle().equalsIgnoreCase(targetGoal);
 
             careerMatches.add(CareerMatchDto.builder()
                     .title(career.getTitle())
@@ -227,10 +227,22 @@ public class ResumeService {
         careerMatches.sort((a, b) -> Integer.compare(b.getMatchScore(), a.getMatchScore()));
 
         // 2. Calculate Target Career Skill Gap
-        CareerDto targetCareer = allCareers.stream()
-                .filter(c -> c.getTitle().equalsIgnoreCase(targetGoal))
-                .findFirst()
-                .orElse(allCareers.get(0));
+        CareerDto targetCareer = null;
+        if (targetGoal != null) {
+            targetCareer = allCareers.stream()
+                    .filter(c -> c.getTitle().equalsIgnoreCase(targetGoal))
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (targetCareer == null && !careerMatches.isEmpty()) {
+            String topMatchTitle = careerMatches.get(0).getTitle();
+            targetCareer = allCareers.stream()
+                    .filter(c -> c.getTitle().equalsIgnoreCase(topMatchTitle))
+                    .findFirst()
+                    .orElse(allCareers.get(0));
+        } else if (targetCareer == null) {
+            targetCareer = allCareers.get(0);
+        }
 
         List<String> targetMatched = new ArrayList<>();
         List<String> targetMissing = new ArrayList<>();

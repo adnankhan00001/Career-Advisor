@@ -118,12 +118,7 @@ public class PersonalizedRoadmapService {
             }
 
             if (careerTrack == null) {
-                List<CareerTrack> allTracks = careerTrackRepository.findAllActiveWithTechnologies();
-                if (!allTracks.isEmpty()) {
-                    careerTrack = allTracks.get(0);
-                } else {
-                    throw new IllegalStateException("No active career tracks available in catalog to generate roadmap");
-                }
+                throw new IllegalStateException("Cannot generate personalized roadmap: No career track has been selected yet. Please select a career track first.");
             }
 
             // Fallback to student's latest submitted assessment session if onboarding didn't record one

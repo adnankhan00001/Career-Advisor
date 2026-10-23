@@ -167,11 +167,10 @@ export default function SignupPage() {
 
           {message && (
             <div
-              className={`p-3 rounded-xl text-xs font-medium text-center ${
-                isError
-                  ? "bg-red-50 text-red-600 border border-red-200"
-                  : "bg-green-50 text-green-700 border border-green-200"
-              }`}
+              className={`p-3 rounded-xl text-xs font-medium text-center ${isError
+                ? "bg-red-50 text-red-600 border border-red-200"
+                : "bg-green-50 text-green-700 border border-green-200"
+                }`}
             >
               {message}
             </div>
@@ -180,11 +179,10 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold text-sm transition shadow-md flex items-center justify-center gap-2 ${
-              loading
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-black hover:bg-gray-800"
-            }`}
+            className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold text-sm transition shadow-md flex items-center justify-center gap-2 ${loading
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-black hover:bg-gray-800"
+              }`}
           >
             {loading ? (
               <>

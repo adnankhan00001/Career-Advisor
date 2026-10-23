@@ -19,18 +19,20 @@ function RoadmapContent() {
 
   const [allRoadmaps, setAllRoadmaps] = useState<Record<string, RoadmapSection[]>>(roadmapData);
   const [skills, setSkills] = useState<string[]>([]);
-  const [selectedCareer, setSelectedCareer] = useState<string>("Java Backend Developer");
-  const [careerGoal, setCareerGoal] = useState<string>("Java Backend Developer");
+  const [selectedCareer, setSelectedCareer] = useState<string | null>(null);
+  const [careerGoal, setCareerGoal] = useState<string | null>(null);
   const [completed, setCompleted] = useState<string[]>([]);
   const [filterQuery, setFilterQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [onboardingState, setOnboardingState] = useState<OnboardingStateDto | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [personalizedRoadmap, setPersonalizedRoadmap] = useState<PersonalizedRoadmap | null>(null);
 
   const loadRoadmapData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [loadedRoadmaps, loadedCompleted, loadedSkills, progressSummary, obState, pRoadmap] =
         await Promise.all([
@@ -44,41 +46,41 @@ function RoadmapContent() {
 
       if (obState) {
         setOnboardingState(obState);
-        if (!obState.hasPersonalizedRoadmap && obState.state !== "ROADMAP_GENERATED") {
+        if (!obState.hasPersonalizedRoadmap && obState.state !== "ROADMAP_GENERATED" && obState.state !== "NOT_STARTED") {
           setShowOnboarding(true);
         }
       }
 
       if (pRoadmap) {
         setPersonalizedRoadmap(pRoadmap);
+      } else {
+        setPersonalizedRoadmap(null);
       }
 
-      if (loadedRoadmaps && Object.keys(loadedRoadmaps).length > 0) {
-        setAllRoadmaps(loadedRoadmaps);
-      }
+      const availableMap = (loadedRoadmaps && Object.keys(loadedRoadmaps).length > 0)
+        ? loadedRoadmaps
+        : roadmapData;
+      setAllRoadmaps(availableMap);
 
-      setCompleted(loadedCompleted);
-      setSkills(loadedSkills);
+      setCompleted(loadedCompleted || []);
+      setSkills(loadedSkills || []);
 
-      const goal = obState?.selectedCareer?.title || progressSummary?.careerGoal || "Java Backend Developer";
+      const goal = obState?.selectedCareer?.title || progressSummary?.careerGoal || null;
       setCareerGoal(goal);
 
       // Read URL query parameter
       const careerParam = searchParams.get("career");
-      if (careerParam && (loadedRoadmaps[careerParam] || roadmapData[careerParam])) {
+      if (careerParam) {
         setSelectedCareer(careerParam);
-      } else if (goal && (loadedRoadmaps[goal] || roadmapData[goal])) {
+      } else if (pRoadmap?.careerTitle) {
+        setSelectedCareer(pRoadmap.careerTitle);
+      } else if (goal) {
         setSelectedCareer(goal);
       } else {
-        const suggestions = getCareerSuggestions(loadedSkills);
-        if (suggestions.length > 0 && (loadedRoadmaps[suggestions[0].title] || roadmapData[suggestions[0].title])) {
-          setSelectedCareer(suggestions[0].title);
-        } else {
-          setSelectedCareer(Object.keys(loadedRoadmaps)[0] || "Java Backend Developer");
-        }
+        setSelectedCareer(null);
       }
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      setLoadError(err?.message || "Failed to load roadmap data from the server. Please verify your connection.");
     } finally {
       setLoading(false);
     }
@@ -101,13 +103,14 @@ function RoadmapContent() {
     setCompleted(updated);
 
     // Call backend
-    const serverResult = await progressService.toggleStep(step, selectedCareer);
+    const serverResult = await progressService.toggleStep(step, selectedCareer ?? undefined);
     if (serverResult && Array.isArray(serverResult)) {
       setCompleted(serverResult);
     }
   };
 
   const handleSetMainGoal = async () => {
+    if (!selectedCareer) return;
     setCareerGoal(selectedCareer);
     await progressService.updateCareerGoal(selectedCareer);
     showNotice(`"${selectedCareer}" is now your active career goal!`);
@@ -119,7 +122,7 @@ function RoadmapContent() {
   };
 
   const currentSections: RoadmapSection[] =
-    allRoadmaps[selectedCareer] || roadmapData[selectedCareer] || [];
+    selectedCareer ? (allRoadmaps[selectedCareer] || roadmapData[selectedCareer] || []) : [];
 
   // Compute total steps and completed count
   const totalStepsInCurrent = currentSections.reduce(
@@ -152,6 +155,30 @@ function RoadmapContent() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 px-4">
+        <div className="bg-red-50 border border-red-200 rounded-3xl p-8 sm:p-10 text-center space-y-4 shadow-sm">
+          <div className="w-14 h-14 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-xs">
+            ⚠️
+          </div>
+          <h2 className="text-xl font-bold text-red-900">Unable to Load Roadmap</h2>
+          <p className="text-sm text-red-700 max-w-md mx-auto leading-relaxed">
+            {loadError}
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={loadRoadmapData}
+              className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-xl shadow transition cursor-pointer"
+            >
+              Retry Loading
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -202,6 +229,113 @@ function RoadmapContent() {
     );
   }
 
+  // Empty State: Candidate has no selected career and no personalized roadmap
+  if (!selectedCareer && !careerGoal && !careerParam) {
+    return (
+      <div className="max-w-5xl mx-auto py-10 px-4 space-y-10">
+        <div className="bg-white rounded-3xl border border-gray-200 p-8 sm:p-12 text-center shadow-xs space-y-6">
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto text-3xl shadow-xs">
+            🗺️
+          </div>
+          <div className="space-y-2 max-w-xl mx-auto">
+            <span className="text-xs uppercase tracking-wider text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full">
+              Personalized Learning
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 pt-2">
+              Choose a Career Track to Begin
+            </h1>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              You haven&apos;t selected a target career track yet. Explore the Career Catalog to choose your role, take an assessment to benchmark your skills, and generate a personalized, dependency-aware learning roadmap.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <Link
+              href="/careers"
+              className="w-full sm:w-auto px-6 py-3.5 bg-black hover:bg-gray-800 text-white font-semibold text-sm rounded-xl shadow transition text-center"
+            >
+              Explore Career Catalog
+            </Link>
+            <button
+              onClick={() => setShowOnboarding(true)}
+              className="w-full sm:w-auto px-6 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-sm rounded-xl border border-blue-200 transition cursor-pointer"
+            >
+              Launch Onboarding Wizard
+            </button>
+          </div>
+        </div>
+
+        {/* Available Career Tracks from Catalog */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+              Select from Catalog Tracks
+            </h2>
+            <Link href="/careers" className="text-xs font-semibold text-blue-600 hover:underline">
+              View All ({careersData.length}) →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {careersData.map((career) => (
+              <div
+                key={career.id}
+                className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs hover:border-blue-300 hover:shadow-md transition flex flex-col justify-between space-y-4"
+              >
+                <div>
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md">
+                    {career.category}
+                  </span>
+                  <h3 className="text-base font-bold text-gray-900 mt-2">{career.title}</h3>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                    {career.overview}
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <Link
+                    href={`/roadmap?career=${encodeURIComponent(career.title)}`}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    Preview Curriculum →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If career has no curriculum roadmap defined in catalog
+  if (currentSections.length === 0) {
+    return (
+      <div className="max-w-3xl mx-auto py-12 px-4 space-y-6 text-center">
+        <div className="bg-white rounded-3xl border border-gray-200 p-8 sm:p-12 shadow-sm space-y-4">
+          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">
+            📋
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Curriculum Under Curation</h2>
+          <p className="text-sm text-gray-600 max-w-md mx-auto">
+            No curriculum roadmap is currently defined for <span className="font-semibold text-gray-900">{selectedCareer}</span>. Our curriculum engineering team is actively curating competencies and study resources for this role.
+          </p>
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/careers"
+              className="px-6 py-2.5 bg-black hover:bg-gray-800 text-white font-semibold text-sm rounded-xl shadow transition"
+            >
+              Explore Other Tracks
+            </Link>
+            <button
+              onClick={() => setSelectedCareer(availableCareers[0] || null)}
+              className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-sm rounded-xl transition cursor-pointer"
+            >
+              Browse Available Roadmaps
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16">
       {/* Toast Notice */}
@@ -209,6 +343,28 @@ function RoadmapContent() {
         <div className="fixed top-5 right-5 z-50 bg-black text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium animate-fade-in flex items-center gap-2">
           <span>✓</span>
           <span>{notice}</span>
+        </div>
+      )}
+
+      {/* Notice for unpersonalized catalog view */}
+      {!personalizedRoadmap && selectedCareer && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">
+                Personalization Pending
+              </span>
+            </div>
+            <p className="text-xs text-blue-900">
+              Viewing standard curriculum for <strong>{selectedCareer}</strong>. Complete your onboarding assessment to generate an adaptive, milestone-calibrated learning roadmap with study schedule tracking.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowOnboarding(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition whitespace-nowrap cursor-pointer"
+          >
+            Generate Personalized Roadmap ✨
+          </button>
         </div>
       )}
 

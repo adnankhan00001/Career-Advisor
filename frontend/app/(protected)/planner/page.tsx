@@ -259,7 +259,7 @@ export default function PlannerPage() {
           </span>
           <div className="mt-1">
             <span className="text-sm sm:text-base font-bold text-gray-900 block truncate">
-              {plan?.targetCareer || "Java Backend Developer"}
+              {plan?.targetCareer || "No Career Track Selected"}
             </span>
             <span className="text-xs text-indigo-600 font-semibold">
               Readiness: {plan?.readinessScoreAtGeneration || 0}%

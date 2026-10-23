@@ -46,13 +46,41 @@ public class CareerIntelligenceService {
         }
 
         String targetGoal = (user.getCareerGoal() != null && !user.getCareerGoal().trim().isEmpty())
-                ? user.getCareerGoal().trim() : "Java Backend Developer";
+                ? user.getCareerGoal().trim() : null;
 
         List<CareerDto> allCareers = careerService.getAllCareers();
-        CareerDto targetCareer = allCareers.stream()
-                .filter(c -> c.getTitle().equalsIgnoreCase(targetGoal))
-                .findFirst()
-                .orElse(allCareers.isEmpty() ? null : allCareers.get(0));
+        CareerDto targetCareer = null;
+        if (targetGoal != null) {
+            targetCareer = allCareers.stream()
+                    .filter(c -> c.getTitle().equalsIgnoreCase(targetGoal))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (targetGoal == null || targetCareer == null) {
+            return CareerIntelligenceDto.builder()
+                    .targetCareer(targetGoal != null ? targetGoal : "No Career Selected")
+                    .readinessScore(0)
+                    .readinessState(ReadinessState.BEGINNER)
+                    .executiveSummary("You have not selected a target career track yet. Explore the Career Catalog to choose a career and generate your customized learning roadmap.")
+                    .dimensionBreakdown(Collections.emptyMap())
+                    .topStrengths(Collections.emptyList())
+                    .priorityGrowthAreas(List.of("Select a Target Career"))
+                    .criticalSkillGaps(Collections.emptyList())
+                    .prioritizedActionPlan(List.of(
+                            CareerActionDto.builder()
+                                    .priority(1)
+                                    .actionType("EXPLORE_CAREERS")
+                                    .title("Select a Target Career Track")
+                                    .description("Browse our industry-aligned catalog of career tracks to select your goal.")
+                                    .actionUrl("/careers")
+                                    .reasoning("Selecting a career track is the first step to unlocking tailored roadmaps and adaptive assessments.")
+                                    .estimatedHours(1)
+                                    .build()
+                    ))
+                    .computedAt(Instant.now())
+                    .build();
+        }
 
         // 1. Fetch Authoritative Platform Records
         List<String> verifiedSkills = userSkillService.getUserSkills(user);

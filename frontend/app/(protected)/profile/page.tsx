@@ -26,7 +26,7 @@ export default function Profile() {
   const [resumeAnalysis, setResumeAnalysis] = useState<ResumeAnalysis | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [careerGoal, setCareerGoal] = useState<string>("Java Backend Developer");
+  const [careerGoal, setCareerGoal] = useState<string>("");
   const [userLevel, setUserLevel] = useState<string>("Intermediate");
   const [quizScore, setQuizScore] = useState<string | null>(null);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
@@ -69,7 +69,7 @@ export default function Profile() {
 
         if (liveSummary) {
           setSummary(liveSummary);
-          setCareerGoal(liveSummary.careerGoal);
+          setCareerGoal(liveSummary.careerGoal || "");
           setSkills(liveSummary.skills);
           setCompletedSteps(liveSummary.completedSteps);
           setUserLevel(liveSummary.userLevel || "Intermediate");
@@ -79,7 +79,7 @@ export default function Profile() {
           const savedGoal =
             localStorage.getItem("careerGoal") ||
             localStorage.getItem("selectedCareer") ||
-            "Java Backend Developer";
+            "";
           const savedLevel = localStorage.getItem("userLevel") || "Intermediate";
           const savedQuizScore = localStorage.getItem("quizScore");
           const savedCompleted = JSON.parse(

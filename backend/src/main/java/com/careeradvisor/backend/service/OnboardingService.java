@@ -22,6 +22,7 @@ public class OnboardingService {
     private final TechnologyRepository technologyRepository;
     private final AssessmentSessionRepository assessmentSessionRepository;
     private final UserRoadmapProgressRepository userRoadmapProgressRepository;
+    private final PersonalizedRoadmapRepository personalizedRoadmapRepository;
     private final UserRepository userRepository;
     private final AssessmentService assessmentService;
     private final PlannerService plannerService;
@@ -32,6 +33,7 @@ public class OnboardingService {
                              TechnologyRepository technologyRepository,
                              AssessmentSessionRepository assessmentSessionRepository,
                              UserRoadmapProgressRepository userRoadmapProgressRepository,
+                             PersonalizedRoadmapRepository personalizedRoadmapRepository,
                              UserRepository userRepository,
                              AssessmentService assessmentService,
                              PlannerService plannerService,
@@ -41,6 +43,7 @@ public class OnboardingService {
         this.technologyRepository = technologyRepository;
         this.assessmentSessionRepository = assessmentSessionRepository;
         this.userRoadmapProgressRepository = userRoadmapProgressRepository;
+        this.personalizedRoadmapRepository = personalizedRoadmapRepository;
         this.userRepository = userRepository;
         this.assessmentService = assessmentService;
         this.plannerService = plannerService;
@@ -54,11 +57,23 @@ public class OnboardingService {
     public OnboardingStateDto getOnboardingState(User user) {
         StudentOnboarding onboarding = getOrCreateOnboardingEntity(user);
 
-        // Check if user already has completed roadmap progress
-        if (!onboarding.isHasPersonalizedRoadmap() && userRoadmapProgressRepository.countByUser(user) > 0) {
-            onboarding.setHasPersonalizedRoadmap(true);
-            if (onboarding.getState() == OnboardingState.NOT_STARTED) {
-                onboarding.setState(OnboardingState.ROADMAP_GENERATED);
+        // Check if user has an active personalized roadmap in the authoritative repository
+        boolean hasActivePersonalizedRoadmap = personalizedRoadmapRepository != null &&
+                personalizedRoadmapRepository.findFirstByUserAndStatusOrderByCreatedAtDesc(user, "ACTIVE").isPresent();
+
+        if (hasActivePersonalizedRoadmap) {
+            if (!onboarding.isHasPersonalizedRoadmap()) {
+                onboarding.setHasPersonalizedRoadmap(true);
+                if (onboarding.getState() == OnboardingState.NOT_STARTED || onboarding.getState() == OnboardingState.ASSESSMENT_COMPLETED) {
+                    onboarding.setState(OnboardingState.ROADMAP_GENERATED);
+                }
+                onboarding = studentOnboardingRepository.save(onboarding);
+            }
+        } else if (onboarding.isHasPersonalizedRoadmap()) {
+            // Reconcile stale flag if no active personalized roadmap actually exists
+            onboarding.setHasPersonalizedRoadmap(false);
+            if (onboarding.getState() == OnboardingState.ROADMAP_GENERATED) {
+                onboarding.setState(onboarding.getSelectedCareer() != null ? OnboardingState.CAREER_SELECTED : OnboardingState.NOT_STARTED);
             }
             onboarding = studentOnboardingRepository.save(onboarding);
         }

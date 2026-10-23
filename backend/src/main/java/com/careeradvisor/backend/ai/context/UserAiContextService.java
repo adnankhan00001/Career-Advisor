@@ -63,7 +63,7 @@ public class UserAiContextService {
                 .id(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
-                .careerGoal(user.getCareerGoal() != null ? user.getCareerGoal() : "Java Backend Developer")
+                .careerGoal(user.getCareerGoal() != null ? user.getCareerGoal() : null)
                 .userLevel(user.getUserLevel() != null ? user.getUserLevel() : "Intermediate")
                 .build();
 

@@ -29,9 +29,8 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Builder.Default
     @Column(name = "career_goal")
-    private String careerGoal = "Java Backend Developer";
+    private String careerGoal;
 
     @Builder.Default
     @Column(name = "user_level")
@@ -86,7 +85,7 @@ public class User {
         this.name = name;
         this.email = email;
         this.password = password;
-        this.careerGoal = "Java Backend Developer";
+        this.careerGoal = null;
         this.userLevel = "Intermediate";
         this.role = Role.USER;
         this.status = UserStatus.ACTIVE;

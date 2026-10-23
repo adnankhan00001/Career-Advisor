@@ -1750,3 +1750,58 @@ Audited, refined, and completed the administrative Audit Logs (`/admin/audit-log
    - Final Classification: **READY FOR PRODUCTION / STAGING / DEMONSTRATION**
 
 
+
+---
+
+## 33. Phase 8: Hardcoded Roadmap Resolution & User-Specific Career Loading
+
+> **Status**: COMPLETE & VERIFIED  
+> **Date**: October 23, 2026  
+> **Key Focus**: Elimination of Hardcoded Default Fallbacks, Explicit Career Selection, User-Specific Personalized Roadmap Loading, Cross-User Data Isolation, Empty State & Error Recovery.
+
+### 1. Problem Statement
+The Roadmap section and telemetry previously displayed a predefined career ("Java Backend Developer") across different users regardless of their actual career selection, assessment results, or saved roadmaps.
+
+### 2. Confirmed Root Causes Identified
+1. **Backend Entity Default Stamping (`User.java`)**: `careerGoal` was initialized to `"Java Backend Developer"` by `@Builder.Default` and in the user constructor, silently assigning the goal upon registration.
+2. **Backend Onboarding False-Positive (`OnboardingService.java`)**: Onboarding checked `userRoadmapProgressRepository.countByUser(user) > 0` (legacy static step progress) instead of `personalizedRoadmapRepository`, falsely marking `hasPersonalizedRoadmap = true` and `ROADMAP_GENERATED` while no personalized roadmap row existed in `personalized_roadmaps`.
+3. **Backend Catalog Fallback on Generation (`PersonalizedRoadmapService.java`)**: If no career was chosen, roadmap generation fell back to `allTracks.get(0)` ("Java Backend Developer") rather than requiring career selection.
+4. **Backend Progress Summary Default (`UserProgressService.java`)**: Returned `"Java Backend Developer"` when user career goal was null.
+5. **Frontend State & Fall-Through Defaults (`roadmap/page.tsx`)**:
+   - Initialized `selectedCareer` and `careerGoal` states to `"Java Backend Developer"`.
+   - Lacked an Empty State for unselected career tracks.
+   - Swallowed fetch exceptions silently.
+   - Fell through to render static `roadmapData["Java Backend Developer"]` when `personalizedRoadmap` was null.
+6. **Dashboard & Ancillary Defaults (`dashboard/page.tsx`, `planner/page.tsx`, `profile/page.tsx`)**: Hardcoded `"Java Backend Developer"` fallbacks.
+
+### 3. Implementation Details
+1. **Backend Entity Hardening (`User.java`)**:
+   - Removed `"Java Backend Developer"` default; new users default to `careerGoal = null`.
+2. **Authoritative Onboarding State Synchronization (`OnboardingService.java`)**:
+   - Injected `PersonalizedRoadmapRepository`.
+   - `hasPersonalizedRoadmap` is now strictly verified against active personalized roadmaps in MySQL `personalized_roadmaps`.
+   - Reconciles stale onboarding flags automatically without database destruction.
+3. **Strict Validation on Roadmap Generation (`PersonalizedRoadmapService.java`)**:
+   - Eliminated silent fallback to `allTracks.get(0)`; throws `IllegalStateException` requiring explicit career selection.
+4. **User-Specific Progress Isolation (`UserProgressService.java`)**:
+   - `getProgressSummary()` returns `careerGoal = null` and 0% progress when no career is selected.
+   - `toggleStep()` validates that career track is explicitly defined.
+5. **Resilient Frontend User Journeys (`roadmap/page.tsx`)**:
+   - States initialize to `null`.
+   - **Empty State**: Displays "Choose a Career Track to Begin" with CTAs to Career Catalog and Onboarding Wizard, plus quick-pick catalog cards.
+   - **Active Personalized Roadmap**: Displays student's tailored roadmap (`PersonalizedRoadmapView`).
+   - **Personalization Pending**: Shows student's selected career with a banner prompting them to generate an adaptive roadmap.
+   - **Curriculum Under Curation**: Displays honest messaging when no curriculum is defined for a track.
+   - **Error Recovery State**: Renders explicit error banner with "Retry Loading" CTA upon network or server failures.
+6. **Dashboard & Planner Telemetry**:
+   - Displays "No Career Selected" and directs candidates to the Career Catalog when `careerGoal == null`.
+
+### 4. Verification & Testing
+- **Backend Test Suite**: All 314 tests passed -> **314 / 314 PASS (100%)**.
+- **Dedicated Isolation Suite (`UserSpecificRoadmapIsolationTests`)**: **5 / 5 PASS (100%)**:
+  - Scenario A: New user registers -> null career goal -> HTTP 204 No Content.
+  - Scenario B: User selects Frontend Engineer -> receives Frontend Engineer personalized roadmap.
+  - Scenario C: User selects Java Backend Developer -> receives Java Backend Developer personalized roadmap.
+  - Scenario D: Strict cross-user roadmap isolation verified via distinct principals.
+  - Scenario E: Unassigned user progress summary returns null career goal.
+- **Frontend Production Build**: `npm run build` -> **29 / 29 routes PASS (0 errors)**.

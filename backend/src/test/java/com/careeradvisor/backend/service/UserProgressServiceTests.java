@@ -124,25 +124,20 @@ class UserProgressServiceTests {
     }
 
     @Test
-    @DisplayName("getProgressSummary handles edge case: null or empty careerGoal (defaults safely)")
+    @DisplayName("getProgressSummary handles edge case: null or empty careerGoal returns empty career goal without hardcoded default")
     void testGetProgressSummaryNullCareerGoal() {
         testUser.setCareerGoal(null);
 
-        RoadmapSectionDto sec = new RoadmapSectionDto();
-        sec.setTitle("Fundamentals");
-        sec.setSteps(List.of("Core Java"));
-
-        when(roadmapService.getRoadmapForCareer("Java Backend Developer")).thenReturn(List.of(sec));
         when(progressRepository.findByUser(testUser)).thenReturn(Collections.emptyList());
         when(skillService.getUserSkills(testUser)).thenReturn(Collections.emptyList());
-        when(careerService.getCareerByIdOrTitle("Java Backend Developer")).thenReturn(Optional.empty());
 
         ProgressSummaryResponse summary = userProgressService.getProgressSummary(testUser);
 
         assertThat(summary).isNotNull();
-        assertThat(summary.getCareerGoal()).isEqualTo("Java Backend Developer");
+        assertThat(summary.getCareerGoal()).isNull();
         assertThat(summary.getRoadmapPercent()).isEqualTo(0);
-        assertThat(summary.getNextTopicToLearn()).isEqualTo("Core Java");
+        assertThat(summary.getTotalStepsCount()).isEqualTo(0);
+        assertThat(summary.getNextTopicToLearn()).isNull();
     }
 
     @Test

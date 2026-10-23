@@ -314,7 +314,7 @@ export default function PersonalizedRoadmapView({
 
       // Refresh roadmap to show verification pending status if step updated
       const refreshed = await personalizedRoadmapService.getPersonalizedRoadmap();
-      setRoadmap(refreshed);
+      if (refreshed) setRoadmap(refreshed);
 
       const evs = await personalizedRoadmapService.getMilestoneEvidence(evidenceMilestone.id);
       setExistingEvidences(evs);

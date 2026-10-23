@@ -79,7 +79,7 @@ public class PlannerService {
                     .dailyStudyMinutes(60)
                     .preferredStudyWindow(StudyWindow.FLEXIBLE)
                     .preferredDays("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY")
-                    .weeklyGoal("Strengthen " + (user.getCareerGoal() != null ? user.getCareerGoal() : "Java Backend Developer") + " readiness")
+                    .weeklyGoal("Strengthen " + (user.getCareerGoal() != null ? user.getCareerGoal() : "technical") + " readiness")
                     .build();
             return preferenceRepository.save(defaultPref);
         });

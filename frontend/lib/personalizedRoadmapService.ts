@@ -117,10 +117,14 @@ export interface UpdateSchedulePayload {
 }
 
 export const personalizedRoadmapService = {
-  async getPersonalizedRoadmap(): Promise<PersonalizedRoadmap> {
-    return apiRequest<PersonalizedRoadmap>(API_ENDPOINTS.PERSONALIZED_ROADMAP.GET, {
+  async getPersonalizedRoadmap(): Promise<PersonalizedRoadmap | null> {
+    const res = await apiRequest<PersonalizedRoadmap | null>(API_ENDPOINTS.PERSONALIZED_ROADMAP.GET, {
       method: "GET",
     });
+    if (!res || typeof res !== "object" || !("careerTitle" in (res as object))) {
+      return null;
+    }
+    return res;
   },
 
   async generateRoadmap(forceRegenerate: boolean = true): Promise<PersonalizedRoadmap> {

@@ -60,7 +60,11 @@ public class UserProgressService {
         String step = stepTitle.trim();
         String career = (careerTitle != null && !careerTitle.trim().isEmpty())
                 ? careerTitle.trim()
-                : (user.getCareerGoal() != null ? user.getCareerGoal() : "Java Backend Developer");
+                : (user.getCareerGoal() != null ? user.getCareerGoal() : null);
+
+        if (career == null) {
+            throw new IllegalArgumentException("Career track must be specified or set on user profile to toggle step progress");
+        }
 
         Optional<UserRoadmapProgress> existing = progressRepository
                 .findByUserAndCareerTitleAndStepTitle(user, career, step);
@@ -89,10 +93,28 @@ public class UserProgressService {
 
     public ProgressSummaryResponse getProgressSummary(User user) {
         String careerGoal = user.getCareerGoal() != null && !user.getCareerGoal().trim().isEmpty()
-                ? user.getCareerGoal()
-                : "Java Backend Developer";
+                ? user.getCareerGoal().trim()
+                : null;
 
         List<String> completedSteps = getCompletedSteps(user);
+        List<String> skills = skillService.getUserSkills(user);
+
+        if (careerGoal == null) {
+            return ProgressSummaryResponse.builder()
+                    .careerGoal(null)
+                    .roadmapPercent(0)
+                    .completedStepsCount(0)
+                    .totalStepsCount(0)
+                    .skillsCount(skills.size())
+                    .skills(skills)
+                    .completedSteps(completedSteps)
+                    .userLevel(user.getUserLevel() != null ? user.getUserLevel() : "Beginner")
+                    .latestQuizScore(user.getLatestQuizScore())
+                    .nextTopicToLearn(null)
+                    .skillMatchPercentage(0)
+                    .build();
+        }
+
         Set<String> completedSet = new HashSet<>(completedSteps);
 
         List<RoadmapSectionDto> sections = roadmapService.getRoadmapForCareer(careerGoal);
@@ -120,8 +142,6 @@ public class UserProgressService {
         int roadmapPercent = totalStepsInGoal > 0
                 ? Math.round(((float) completedInGoal / totalStepsInGoal) * 100)
                 : 0;
-
-        List<String> skills = skillService.getUserSkills(user);
 
         // Compute skill match percentage
         int matchPercentage = 0;
