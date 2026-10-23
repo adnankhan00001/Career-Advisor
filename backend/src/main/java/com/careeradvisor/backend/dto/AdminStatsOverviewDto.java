@@ -13,6 +13,11 @@ import java.util.Map;
 @AllArgsConstructor
 public class AdminStatsOverviewDto {
     private long totalUsers;
+    private long activeUsers;
+    private long approvedMentors;
+    private long pendingMentorApplications;
+    private long activeMentorships;
+    private long openSupportRequests;
     private long totalResumes;
     private long totalQuizAttempts;
     private long totalSolvedProblems;

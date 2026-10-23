@@ -5,6 +5,7 @@ import com.careeradvisor.backend.dto.ChatMessageDto;
 import com.careeradvisor.backend.dto.ConversationParticipantDto;
 import com.careeradvisor.backend.dto.ConversationResponseDto;
 import com.careeradvisor.backend.dto.RealTimeEventDto;
+import com.careeradvisor.backend.dto.UpdateSupportStatusRequest;
 import com.careeradvisor.backend.exception.ResourceNotFoundException;
 import com.careeradvisor.backend.model.*;
 import com.careeradvisor.backend.repository.ChatMessageRepository;
@@ -28,6 +29,7 @@ public class ConversationService {
     private final RealTimeMessagingService messagingService;
     private final PresenceService presenceService;
     private final AiConfigProperties aiConfigProperties;
+    private final AdminAuditLogService auditLogService;
 
     public ConversationService(ConversationRepository conversationRepository,
                                ChatMessageRepository chatMessageRepository,
@@ -36,6 +38,19 @@ public class ConversationService {
                                RealTimeMessagingService messagingService,
                                PresenceService presenceService,
                                AiConfigProperties aiConfigProperties) {
+        this(conversationRepository, chatMessageRepository, participantRepository, userRepository,
+                messagingService, presenceService, aiConfigProperties, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ConversationService(ConversationRepository conversationRepository,
+                               ChatMessageRepository chatMessageRepository,
+                               ConversationParticipantRepository participantRepository,
+                               UserRepository userRepository,
+                               RealTimeMessagingService messagingService,
+                               PresenceService presenceService,
+                               AiConfigProperties aiConfigProperties,
+                               AdminAuditLogService auditLogService) {
         this.conversationRepository = conversationRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.participantRepository = participantRepository;
@@ -43,6 +58,7 @@ public class ConversationService {
         this.messagingService = messagingService;
         this.presenceService = presenceService;
         this.aiConfigProperties = aiConfigProperties;
+        this.auditLogService = auditLogService;
     }
 
     // ================================================================
@@ -268,11 +284,44 @@ public class ConversationService {
 
     @Transactional(readOnly = true)
     public List<ConversationResponseDto> getAdminInbox(User adminUser) {
+        return getAdminInbox(adminUser, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConversationResponseDto> getAdminInbox(User adminUser, String search, String status) {
         if (adminUser.getRole() != Role.ADMIN) {
             throw new ResourceNotFoundException("Not found");
         }
 
         List<Conversation> adminConvs = conversationRepository.findByTypeOrderByUpdatedAtDesc(ConversationType.USER_TO_ADMIN);
+
+        // Filter by status if provided
+        if (status != null && !status.trim().isEmpty() && !"ALL".equalsIgnoreCase(status.trim())) {
+            String normStatus = status.trim().toUpperCase();
+            if ("OPEN".equals(normStatus) || "ACTIVE".equals(normStatus)) {
+                adminConvs = adminConvs.stream()
+                        .filter(c -> !c.isArchived())
+                        .collect(Collectors.toList());
+            } else if ("RESOLVED".equals(normStatus) || "ARCHIVED".equals(normStatus) || "CLOSED".equals(normStatus)) {
+                adminConvs = adminConvs.stream()
+                        .filter(Conversation::isArchived)
+                        .collect(Collectors.toList());
+            }
+        }
+
+        // Filter by search term if provided (matches ticket subject/title, requester name, or email)
+        if (search != null && !search.trim().isEmpty()) {
+            String query = search.trim().toLowerCase();
+            adminConvs = adminConvs.stream()
+                    .filter(c -> {
+                        boolean titleMatch = c.getTitle() != null && c.getTitle().toLowerCase().contains(query);
+                        boolean ownerNameMatch = c.getOwner() != null && c.getOwner().getName() != null && c.getOwner().getName().toLowerCase().contains(query);
+                        boolean ownerEmailMatch = c.getOwner() != null && c.getOwner().getEmail() != null && c.getOwner().getEmail().toLowerCase().contains(query);
+                        return titleMatch || ownerNameMatch || ownerEmailMatch;
+                    })
+                    .collect(Collectors.toList());
+        }
+
         return adminConvs.stream()
                 .map(c -> {
                     long totalCount = chatMessageRepository.countByConversation(c);
@@ -285,6 +334,101 @@ public class ConversationService {
                     return dto;
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public ConversationResponseDto updateSupportStatus(Long conversationId, User adminUser, UpdateSupportStatusRequest request) {
+        if (adminUser.getRole() != Role.ADMIN) {
+            throw new IllegalArgumentException("Only administrators can update support ticket status");
+        }
+        if (request == null || request.getStatus() == null || request.getStatus().trim().isEmpty()) {
+            throw new IllegalArgumentException("Status is required (OPEN or RESOLVED)");
+        }
+
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found with id: " + conversationId));
+
+        if (conversation.getType() != ConversationType.USER_TO_ADMIN) {
+            throw new IllegalArgumentException("Conversation #" + conversationId + " is not a support ticket");
+        }
+
+        String target = request.getStatus().trim().toUpperCase();
+        boolean toResolve = "RESOLVED".equals(target) || "ARCHIVED".equals(target) || "CLOSED".equals(target);
+        boolean toOpen = "OPEN".equals(target) || "ACTIVE".equals(target) || "REOPEN".equals(target);
+
+        if (!toResolve && !toOpen) {
+            throw new IllegalArgumentException("Invalid support status: " + request.getStatus() + ". Allowed values: OPEN, RESOLVED");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (toResolve) {
+            if (conversation.isArchived()) {
+                throw new IllegalStateException("Support ticket #" + conversationId + " is already resolved");
+            }
+            conversation.setArchived(true);
+            conversation.setUpdatedAt(now);
+            conversationRepository.save(conversation);
+
+            if (auditLogService != null) {
+                String requesterName = conversation.getOwner() != null ? conversation.getOwner().getName() : "Candidate";
+                Map<String, Object> details = new LinkedHashMap<>();
+                details.put("conversationId", conversationId);
+                details.put("title", conversation.getTitle());
+                details.put("requesterId", conversation.getOwner() != null ? conversation.getOwner().getId() : null);
+                details.put("requesterName", requesterName);
+                details.put("previousStatus", "OPEN");
+                details.put("resultingStatus", "RESOLVED");
+                if (request.getNote() != null && !request.getNote().trim().isEmpty()) {
+                    details.put("resolutionNote", request.getNote().trim());
+                }
+
+                auditLogService.recordAction(
+                        adminUser.getId(),
+                        null,
+                        null,
+                        AdminAuditAction.SUPPORT_TICKET_RESOLVED,
+                        AdminAuditTargetType.SUPPORT_CONVERSATION,
+                        conversationId.toString(),
+                        "Resolved support ticket #" + conversationId + " (" + conversation.getTitle() + ") for " + requesterName,
+                        details
+                );
+            }
+        } else {
+            if (!conversation.isArchived()) {
+                throw new IllegalStateException("Support ticket #" + conversationId + " is already open");
+            }
+            conversation.setArchived(false);
+            conversation.setUpdatedAt(now);
+            conversationRepository.save(conversation);
+
+            if (auditLogService != null) {
+                String requesterName = conversation.getOwner() != null ? conversation.getOwner().getName() : "Candidate";
+                Map<String, Object> details = new LinkedHashMap<>();
+                details.put("conversationId", conversationId);
+                details.put("title", conversation.getTitle());
+                details.put("requesterId", conversation.getOwner() != null ? conversation.getOwner().getId() : null);
+                details.put("requesterName", requesterName);
+                details.put("previousStatus", "RESOLVED");
+                details.put("resultingStatus", "OPEN");
+                if (request.getNote() != null && !request.getNote().trim().isEmpty()) {
+                    details.put("reopenNote", request.getNote().trim());
+                }
+
+                auditLogService.recordAction(
+                        adminUser.getId(),
+                        null,
+                        null,
+                        AdminAuditAction.SUPPORT_TICKET_REOPENED,
+                        AdminAuditTargetType.SUPPORT_CONVERSATION,
+                        conversationId.toString(),
+                        "Reopened support ticket #" + conversationId + " (" + conversation.getTitle() + ") for " + requesterName,
+                        details
+                );
+            }
+        }
+
+        return getConversationForHuman(conversationId, adminUser);
     }
 
     @Transactional(readOnly = true)
@@ -409,6 +553,27 @@ public class ConversationService {
 
         messagingService.broadcastToConversation(conversation.getId(), event);
 
+        // Record audit log for admin reply on support tickets
+        if (sender.getRole() == Role.ADMIN && conversation.getType() == ConversationType.USER_TO_ADMIN && auditLogService != null) {
+            String requesterName = conversation.getOwner() != null ? conversation.getOwner().getName() : "Candidate";
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("conversationId", conversation.getId());
+            details.put("messageId", saved.getId());
+            details.put("requesterName", requesterName);
+            details.put("sequenceNumber", sequenceNumber);
+
+            auditLogService.recordAction(
+                    sender.getId(),
+                    null,
+                    null,
+                    AdminAuditAction.SUPPORT_REPLY_SENT,
+                    AdminAuditTargetType.SUPPORT_CONVERSATION,
+                    conversation.getId().toString(),
+                    "Admin " + sender.getName() + " sent reply in support ticket #" + conversation.getId(),
+                    details
+            );
+        }
+
         return mapMessageToDto(saved);
     }
 
@@ -474,10 +639,11 @@ public class ConversationService {
             throw new IllegalArgumentException("User account is " + user.getStatus().name().toLowerCase() + " and cannot access conversations");
         }
 
+        if (user.getRole() == Role.ADMIN) {
+            return; // Admin permitted to access conversations for support & mentorship oversight
+        }
+
         if (conversation.getType() == ConversationType.USER_TO_ADMIN) {
-            if (user.getRole() == Role.ADMIN) {
-                return; // Admin permitted to access support conversations
-            }
             boolean isParticipant = participantRepository.existsByConversationIdAndUserId(conversation.getId(), user.getId());
             boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(user.getId());
             if (!isParticipant && !isOwner) {

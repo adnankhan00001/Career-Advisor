@@ -43,6 +43,9 @@ class AdminPlatformSettingsControllerTests {
     void testGetSettingsSuccess() throws Exception {
         PlatformSettingsDto settings = PlatformSettingsDto.builder()
                 .mentorshipCapacity(new MentorshipCapacityConfigDto(2, 12, 4))
+                .platformConfig(java.util.Map.of("aiModel", "gemini-1.5-flash", "aiEnabled", true))
+                .securityPolicy(java.util.Map.of("authenticationMethod", "Stateless JWT (HMAC-SHA256)"))
+                .systemInfo(java.util.Map.of("applicationName", "Career Advisor"))
                 .lastUpdatedBy("admin@careeradvisor.com")
                 .lastUpdatedAt(LocalDateTime.now())
                 .build();
@@ -54,6 +57,8 @@ class AdminPlatformSettingsControllerTests {
                 .andExpect(jsonPath("$.mentorshipCapacity.minMentees").value(2))
                 .andExpect(jsonPath("$.mentorshipCapacity.maxMentees").value(12))
                 .andExpect(jsonPath("$.mentorshipCapacity.defaultMentees").value(4))
+                .andExpect(jsonPath("$.platformConfig.aiModel").value("gemini-1.5-flash"))
+                .andExpect(jsonPath("$.systemInfo.applicationName").value("Career Advisor"))
                 .andExpect(jsonPath("$.lastUpdatedBy").value("admin@careeradvisor.com"));
 
         verify(platformSettingsService).getPlatformSettings();

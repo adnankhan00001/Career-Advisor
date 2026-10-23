@@ -1,0 +1,11 @@
+package com.careeradvisor.backend.model;
+
+public enum RoadmapChangeAction {
+    KEEP_EXISTING_STEP,
+    ADD_NEW_STEP,
+    UPDATE_RECOMMENDED_PRIORITY,
+    UPDATE_ESTIMATED_EFFORT,
+    RECOMMEND_REASSESSMENT,
+    MARK_AS_POTENTIALLY_TESTED_OUT,
+    NO_CHANGE_REQUIRED
+}

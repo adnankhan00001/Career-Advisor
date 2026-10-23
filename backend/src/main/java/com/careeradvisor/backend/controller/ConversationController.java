@@ -269,17 +269,36 @@ public class ConversationController {
     }
 
     /**
-     * Admin Support Inbox: returns all USER_TO_ADMIN support conversations.
+     * Admin Support Inbox: returns all USER_TO_ADMIN support conversations with optional search and status filtering.
      */
     @GetMapping("/admin/inbox")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ConversationResponseDto>> getAdminInbox(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "status", required = false) String status) {
         User user = getAuthenticatedUser(userDetails);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        return ResponseEntity.ok(conversationService.getAdminInbox(user));
+        return ResponseEntity.ok(conversationService.getAdminInbox(user, search, status));
+    }
+
+    /**
+     * Resolves or reopens a USER_TO_ADMIN support conversation.
+     */
+    @PatchMapping("/admin/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ConversationResponseDto> updateSupportStatus(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateSupportStatusRequest request) {
+        User user = getAuthenticatedUser(userDetails);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(conversationService.updateSupportStatus(id, user, request));
     }
 }

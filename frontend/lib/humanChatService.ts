@@ -96,7 +96,28 @@ export const humanChatService = {
     }
   },
 
-  async getAdminInbox(): Promise<HumanConversation[]> {
-    return apiRequest<HumanConversation[]>(API_ENDPOINTS.CONVERSATIONS.ADMIN_INBOX);
+  async getAdminInbox(search?: string, status?: string): Promise<HumanConversation[]> {
+    const params = new URLSearchParams();
+    if (search && search.trim()) params.set('search', search.trim());
+    if (status && status !== 'ALL') params.set('status', status);
+    const qs = params.toString();
+    const url = qs
+      ? `${API_ENDPOINTS.CONVERSATIONS.ADMIN_INBOX}?${qs}`
+      : API_ENDPOINTS.CONVERSATIONS.ADMIN_INBOX;
+    return apiRequest<HumanConversation[]>(url);
+  },
+
+  async updateSupportStatus(
+    id: number | string,
+    status: 'OPEN' | 'RESOLVED',
+    note?: string
+  ): Promise<HumanConversation> {
+    return apiRequest<HumanConversation>(API_ENDPOINTS.CONVERSATIONS.ADMIN_STATUS(id), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status, note }),
+    });
   },
 };

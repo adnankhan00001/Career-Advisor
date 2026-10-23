@@ -4,5 +4,6 @@ public enum AdminAuditTargetType {
     USER,
     MENTOR,
     MENTORSHIP_REQUEST,
-    PLATFORM_SETTING
+    PLATFORM_SETTING,
+    SUPPORT_CONVERSATION
 }

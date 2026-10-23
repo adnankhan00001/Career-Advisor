@@ -14,6 +14,9 @@ import com.careeradvisor.backend.model.Role;
 import com.careeradvisor.backend.model.User;
 import com.careeradvisor.backend.model.AdminAuditAction;
 import com.careeradvisor.backend.model.AdminAuditTargetType;
+import com.careeradvisor.backend.model.ConversationType;
+import com.careeradvisor.backend.model.MentorVerificationStatus;
+import com.careeradvisor.backend.model.MentorshipRequestStatus;
 import com.careeradvisor.backend.model.UserStatus;
 import com.careeradvisor.backend.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,14 +54,43 @@ public class AdminService {
     @Autowired
     private UserRoadmapProgressRepository roadmapProgressRepository;
 
+    @Autowired
+    private MentorProfileRepository mentorProfileRepository;
+
+    @Autowired
+    private MentorshipRequestRepository mentorshipRequestRepository;
+
+    @Autowired
+    private ConversationRepository conversationRepository;
+
+    @Autowired
+    private QuizAttemptRepository quizAttemptRepository;
+
     @Autowired(required = false)
     private AdminAuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public AdminStatsOverviewDto getStatsOverview() {
         long totalUsers = userRepository.count();
+        long activeUsers = userRepository.countByStatus(UserStatus.ACTIVE);
+        long approvedMentors = mentorProfileRepository != null
+                ? mentorProfileRepository.countByVerificationStatus(MentorVerificationStatus.APPROVED)
+                : 0L;
+        long pendingMentorApplications = mentorProfileRepository != null
+                ? mentorProfileRepository.countByVerificationStatus(MentorVerificationStatus.APPLIED)
+                : 0L;
+        long activeMentorships = mentorshipRequestRepository != null
+                ? mentorshipRequestRepository.countByStatus(MentorshipRequestStatus.ACCEPTED)
+                : 0L;
+        long openSupportRequests = conversationRepository != null
+                ? conversationRepository.countByType(ConversationType.USER_TO_ADMIN)
+                : 0L;
+
         long totalResumes = resumeRepository.count();
-        long totalQuizAttempts = userRepository.countByLatestQuizScoreIsNotNull();
+        long totalQuizAttempts = quizAttemptRepository != null ? quizAttemptRepository.count() : 0L;
+        if (totalQuizAttempts == 0) {
+            totalQuizAttempts = userRepository.countByLatestQuizScoreIsNotNull();
+        }
         long totalSolvedProblems = problemProgressRepository.countBySolvedTrue();
         long totalMockInterviews = mockInterviewRepository.count();
         long totalCompletedInterviews = mockInterviewRepository.countByStatus(InterviewStatus.COMPLETED);
@@ -87,6 +119,11 @@ public class AdminService {
 
         return AdminStatsOverviewDto.builder()
                 .totalUsers(totalUsers)
+                .activeUsers(activeUsers)
+                .approvedMentors(approvedMentors)
+                .pendingMentorApplications(pendingMentorApplications)
+                .activeMentorships(activeMentorships)
+                .openSupportRequests(openSupportRequests)
                 .totalResumes(totalResumes)
                 .totalQuizAttempts(totalQuizAttempts)
                 .totalSolvedProblems(totalSolvedProblems)

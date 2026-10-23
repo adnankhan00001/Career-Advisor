@@ -64,6 +64,21 @@ export default function AdminMentorshipsPage() {
     }
   }, [isAuthLoading, isAuthenticated, user, router]);
 
+  // Handle ESC key for closing modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (terminateTarget) {
+          setTerminateTarget(null);
+        } else if (selectedRequest) {
+          setSelectedRequest(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [terminateTarget, selectedRequest]);
+
   const loadSummary = async () => {
     setIsLoadingSummary(true);
     try {
@@ -285,7 +300,8 @@ export default function AdminMentorshipsPage() {
           <span>{feedback.type === "success" ? "✓" : "⚠️"} {feedback.message}</span>
           <button
             onClick={() => setFeedback(null)}
-            className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 cursor-pointer"
+            aria-label="Dismiss feedback message"
+            className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
           >
             ✕
           </button>
@@ -346,12 +362,14 @@ export default function AdminMentorshipsPage() {
             <div className="relative flex-1">
               <input
                 type="text"
+                id="mentorship-search-input"
+                aria-label="Search by student, mentor, or company"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search student, mentor, or company..."
                 className="w-full pl-9 pr-8 py-2 rounded-xl border border-gray-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-black"
               />
-              <span className="absolute left-3 top-2.5 text-gray-400 text-xs">🔍</span>
+              <span className="absolute left-3 top-2.5 text-gray-400 text-xs" aria-hidden="true">🔍</span>
               {searchInput && (
                 <button
                   type="button"
@@ -360,6 +378,7 @@ export default function AdminMentorshipsPage() {
                     setAppliedSearch("");
                     setPage(0);
                   }}
+                  aria-label="Clear mentorship search"
                   className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-700 text-xs font-bold"
                 >
                   ✕
@@ -368,7 +387,7 @@ export default function AdminMentorshipsPage() {
             </div>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-black text-white font-semibold text-xs hover:bg-gray-800 transition cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-black text-white font-semibold text-xs hover:bg-gray-800 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
             >
               Search
             </button>
@@ -380,6 +399,7 @@ export default function AdminMentorshipsPage() {
               <span className="text-gray-400">From:</span>
               <input
                 type="date"
+                aria-label="Filter from date"
                 value={fromDate}
                 onChange={(e) => {
                   setFromDate(e.target.value);
@@ -392,6 +412,7 @@ export default function AdminMentorshipsPage() {
               <span className="text-gray-400">To:</span>
               <input
                 type="date"
+                aria-label="Filter to date"
                 value={toDate}
                 onChange={(e) => {
                   setToDate(e.target.value);
@@ -404,7 +425,7 @@ export default function AdminMentorshipsPage() {
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
               >
                 Clear
               </button>
@@ -422,7 +443,7 @@ export default function AdminMentorshipsPage() {
                 setStatusFilter(st);
                 setPage(0);
               }}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400 ${
                 statusFilter === st
                   ? "bg-purple-600 text-white shadow-xs"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -449,11 +470,12 @@ export default function AdminMentorshipsPage() {
               <tr>
                 <th
                   onClick={() => handleSort("id")}
+                  aria-sort={sortField === "id" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-4 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>ID</span>
-                    {sortField === "id" && <span>{sortDirection === "asc" ? "▲" : "▼"}</span>}
+                    {sortField === "id" && <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>}
                   </div>
                 </th>
                 <th className="px-6 py-4">Student</th>
@@ -461,29 +483,32 @@ export default function AdminMentorshipsPage() {
                 <th className="px-4 py-4">Topic / Goal</th>
                 <th
                   onClick={() => handleSort("status")}
+                  aria-sort={sortField === "status" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-4 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>Status</span>
-                    {sortField === "status" && <span>{sortDirection === "asc" ? "▲" : "▼"}</span>}
+                    {sortField === "status" && <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>}
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort("createdAt")}
+                  aria-sort={sortField === "createdAt" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-4 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>Requested</span>
-                    {sortField === "createdAt" && <span>{sortDirection === "asc" ? "▲" : "▼"}</span>}
+                    {sortField === "createdAt" && <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>}
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort("updatedAt")}
+                  aria-sort={sortField === "updatedAt" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-4 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>Last Activity</span>
-                    {sortField === "updatedAt" && <span>{sortDirection === "asc" ? "▲" : "▼"}</span>}
+                    {sortField === "updatedAt" && <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>}
                   </div>
                 </th>
                 <th className="px-6 py-4 text-right">Actions</th>
@@ -637,12 +662,17 @@ export default function AdminMentorshipsPage() {
 
       {/* Inspect Modal */}
       {selectedRequest && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mentorship-detail-title"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-gray-200 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">
+                  <h2 id="mentorship-detail-title" className="text-lg font-bold text-gray-900">
                     Mentorship Request #{selectedRequest.id}
                   </h2>
                   <span
@@ -661,7 +691,8 @@ export default function AdminMentorshipsPage() {
 
               <button
                 onClick={() => setSelectedRequest(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer"
+                aria-label="Close mentorship details modal"
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
               >
                 ✕
               </button>
@@ -800,15 +831,20 @@ export default function AdminMentorshipsPage() {
 
       {/* Terminate Modal */}
       {terminateTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="terminate-mentorship-title"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-200 space-y-5 animate-in fade-in duration-200">
             <div className="flex items-start justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center font-bold text-lg">
+                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center font-bold text-lg" aria-hidden="true">
                   ⚠️
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Administrative Termination</h2>
+                  <h2 id="terminate-mentorship-title" className="text-lg font-bold text-gray-900">Administrative Termination</h2>
                   <p className="text-xs text-gray-500">
                     Terminate Mentorship Request #{terminateTarget.id}
                   </p>
@@ -816,7 +852,8 @@ export default function AdminMentorshipsPage() {
               </div>
               <button
                 onClick={() => setTerminateTarget(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer"
+                aria-label="Close termination modal"
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
               >
                 ✕
               </button>
@@ -836,10 +873,11 @@ export default function AdminMentorshipsPage() {
             )}
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              <label htmlFor="termination-reason-input" className="block text-xs font-bold text-gray-700 mb-1.5">
                 Termination Reason <span className="text-red-500">*</span>
               </label>
               <textarea
+                id="termination-reason-input"
                 value={terminationReason}
                 onChange={(e) => setTerminationReason(e.target.value)}
                 placeholder="Specify the administrative intervention reason (mandatory)..."
@@ -853,7 +891,7 @@ export default function AdminMentorshipsPage() {
                 type="button"
                 onClick={() => setTerminateTarget(null)}
                 disabled={isSubmittingTerminate}
-                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-gray-400"
               >
                 Cancel
               </button>
@@ -861,7 +899,7 @@ export default function AdminMentorshipsPage() {
                 type="button"
                 onClick={handleConfirmTerminate}
                 disabled={isSubmittingTerminate}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-2"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 {isSubmittingTerminate ? (
                   <>

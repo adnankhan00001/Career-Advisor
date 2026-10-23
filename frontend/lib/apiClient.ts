@@ -54,6 +54,20 @@ export async function apiRequest<T = any>(
   url: string,
   options: RequestInit = {}
 ): Promise<T> {
+  // Prevent silent routing to localhost when running in a remote/production browser
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1" &&
+    (url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1"))
+  ) {
+    throw new ApiError(
+      0,
+      "Configuration Error: Remote deployment is attempting to contact a localhost backend. Ensure NEXT_PUBLIC_API_URL is configured in your hosting provider.",
+      "ConfigurationError"
+    );
+  }
+
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers: Record<string, string> = {

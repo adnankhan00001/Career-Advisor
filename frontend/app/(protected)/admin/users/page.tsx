@@ -108,13 +108,29 @@ export default function AdminUsersPage() {
     setPage(0);
   };
 
+  // Keyboard shortcut: close modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (suspendTarget) setSuspendTarget(null);
+        else if (reactivateTarget) setReactivateTarget(null);
+        else if (selectedUser) setSelectedUser(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [suspendTarget, reactivateTarget, selectedUser]);
+
   const handleInspectUser = async (id: number) => {
     setIsLoadingDetail(true);
     try {
       const detail = await getAdminUserDetail(id);
       setSelectedUser(detail);
     } catch (err: any) {
-      alert("Failed to load user details: " + err.message);
+      setFeedback({
+        type: "error",
+        message: "Failed to load candidate details: " + (err.message || "Unknown error"),
+      });
     } finally {
       setIsLoadingDetail(false);
     }
@@ -248,7 +264,8 @@ export default function AdminUsersPage() {
           <span>{feedback.type === "success" ? "✓" : "⚠️"} {feedback.message}</span>
           <button
             onClick={() => setFeedback(null)}
-            className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 cursor-pointer"
+            aria-label="Dismiss feedback alert"
+            className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
           >
             ✕
           </button>
@@ -262,17 +279,20 @@ export default function AdminUsersPage() {
           <div className="relative flex-1">
             <input
               type="text"
+              id="user-search-input"
+              aria-label="Search candidate name or email"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search candidate name or email..."
               className="w-full pl-9 pr-8 py-2 rounded-xl border border-gray-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-black"
             />
-            <span className="absolute left-3 top-2.5 text-gray-400 text-xs">🔍</span>
+            <span className="absolute left-3 top-2.5 text-gray-400 text-xs" aria-hidden="true">🔍</span>
             {searchInput && (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-700 text-xs cursor-pointer font-bold"
+                aria-label="Clear candidate search"
+                className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-700 text-xs cursor-pointer font-bold focus:outline-none"
               >
                 ✕
               </button>
@@ -280,7 +300,7 @@ export default function AdminUsersPage() {
           </div>
           <button
             type="submit"
-            className="px-4 py-2 rounded-xl bg-black text-white font-semibold text-xs hover:bg-gray-800 transition cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-black text-white font-semibold text-xs hover:bg-gray-800 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
           >
             Search
           </button>
@@ -298,7 +318,7 @@ export default function AdminUsersPage() {
                   setRoleFilter(rf);
                   setPage(0);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400 ${
                   roleFilter === rf
                     ? "bg-purple-600 text-white shadow-xs"
                     : "text-gray-600 hover:bg-gray-200"
@@ -319,7 +339,7 @@ export default function AdminUsersPage() {
                   setStatusFilter(sf);
                   setPage(0);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-black ${
                   statusFilter === sf
                     ? sf === "SUSPENDED"
                       ? "bg-red-600 text-white shadow-xs"
@@ -351,34 +371,37 @@ export default function AdminUsersPage() {
               <tr>
                 <th
                   onClick={() => handleSort("name")}
+                  aria-sort={sortField === "name" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>User</span>
                     {sortField === "name" && (
-                      <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>
                     )}
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort("role")}
+                  aria-sort={sortField === "role" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-4 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>Role</span>
                     {sortField === "role" && (
-                      <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>
                     )}
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort("status")}
+                  aria-sort={sortField === "status" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-4 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>Status</span>
                     {sortField === "status" && (
-                      <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>
                     )}
                   </div>
                 </th>
@@ -389,12 +412,13 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-4">DSA Solved</th>
                 <th
                   onClick={() => handleSort("createdAt")}
+                  aria-sort={sortField === "createdAt" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                   className="px-4 py-4 cursor-pointer hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>Joined</span>
                     {sortField === "createdAt" && (
-                      <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      <span aria-hidden="true">{sortDirection === "asc" ? "▲" : "▼"}</span>
                     )}
                   </div>
                 </th>
@@ -413,8 +437,31 @@ export default function AdminUsersPage() {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-400">
-                    No candidates found matching your criteria.
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                    <div className="max-w-sm mx-auto space-y-3">
+                      <span className="text-3xl block">👥</span>
+                      <p className="font-bold text-gray-800 text-sm">No candidate accounts found</p>
+                      <p className="text-xs text-gray-400">
+                        {appliedSearch || roleFilter !== "ALL" || statusFilter !== "ALL"
+                          ? "No candidates matched your search or filter criteria."
+                          : "No candidate records are currently registered on the platform."}
+                      </p>
+                      {(appliedSearch || roleFilter !== "ALL" || statusFilter !== "ALL") && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchInput("");
+                            setAppliedSearch("");
+                            setRoleFilter("ALL");
+                            setStatusFilter("ALL");
+                            setPage(0);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs transition cursor-pointer"
+                        >
+                          Reset All Filters
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -654,15 +701,20 @@ export default function AdminUsersPage() {
 
       {/* Suspend Confirmation Modal */}
       {suspendTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="suspend-account-title"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-200 space-y-5 animate-in fade-in duration-200">
             <div className="flex items-start justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center font-bold text-lg">
+                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center font-bold text-lg" aria-hidden="true">
                   ⚠️
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Suspend Account</h2>
+                  <h2 id="suspend-account-title" className="text-lg font-bold text-gray-900">Suspend Account</h2>
                   <p className="text-xs text-gray-500">
                     Immediately revoke platform access for {suspendTarget.name}
                   </p>
@@ -670,7 +722,8 @@ export default function AdminUsersPage() {
               </div>
               <button
                 onClick={() => setSuspendTarget(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer"
+                aria-label="Close suspend dialog"
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
               >
                 ✕
               </button>
@@ -690,10 +743,11 @@ export default function AdminUsersPage() {
             )}
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              <label htmlFor="suspend-reason-input" className="block text-xs font-bold text-gray-700 mb-1.5">
                 Reason for Suspension <span className="text-red-500">*</span>
               </label>
               <textarea
+                id="suspend-reason-input"
                 value={suspensionReason}
                 onChange={(e) => setSuspensionReason(e.target.value)}
                 placeholder="Specify the policy violation or rationale (mandatory)..."
@@ -707,7 +761,7 @@ export default function AdminUsersPage() {
                 type="button"
                 onClick={() => setSuspendTarget(null)}
                 disabled={isSubmittingStatus}
-                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-gray-400"
               >
                 Cancel
               </button>
@@ -715,7 +769,7 @@ export default function AdminUsersPage() {
                 type="button"
                 onClick={handleConfirmSuspend}
                 disabled={isSubmittingStatus}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-2"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 {isSubmittingStatus ? (
                   <>
@@ -733,15 +787,20 @@ export default function AdminUsersPage() {
 
       {/* Reactivate Confirmation Modal */}
       {reactivateTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reactivate-account-title"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-200 space-y-5 animate-in fade-in duration-200">
             <div className="flex items-start justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg" aria-hidden="true">
                   ✓
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Reactivate Account</h2>
+                  <h2 id="reactivate-account-title" className="text-lg font-bold text-gray-900">Reactivate Account</h2>
                   <p className="text-xs text-gray-500">
                     Restore access for {reactivateTarget.name}
                   </p>
@@ -749,7 +808,8 @@ export default function AdminUsersPage() {
               </div>
               <button
                 onClick={() => setReactivateTarget(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer"
+                aria-label="Close reactivate dialog"
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
               >
                 ✕
               </button>
@@ -764,7 +824,7 @@ export default function AdminUsersPage() {
                 type="button"
                 onClick={() => setReactivateTarget(null)}
                 disabled={isSubmittingStatus}
-                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-gray-400"
               >
                 Cancel
               </button>
@@ -772,7 +832,7 @@ export default function AdminUsersPage() {
                 type="button"
                 onClick={handleConfirmReactivate}
                 disabled={isSubmittingStatus}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-2"
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 {isSubmittingStatus ? (
                   <>
@@ -790,7 +850,12 @@ export default function AdminUsersPage() {
 
       {/* User Details Modal */}
       {selectedUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="user-detail-title"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-gray-200 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <div className="flex items-center gap-3">
@@ -799,7 +864,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-gray-900">{selectedUser.name}</h2>
+                    <h2 id="user-detail-title" className="text-lg font-bold text-gray-900">{selectedUser.name}</h2>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-700 border border-purple-200">
                       {selectedUser.role}
                     </span>
@@ -937,7 +1002,65 @@ export default function AdminUsersPage() {
               <span>Member Since: {formatDate(selectedUser.createdAt)}</span>
             </div>
 
-            <div className="pt-2 border-t border-gray-100 flex justify-end">
+            <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {selectedUser.id !== user?.id && (
+                  selectedUser.status === "SUSPENDED" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target: AdminUser = {
+                          id: selectedUser.id,
+                          name: selectedUser.name,
+                          email: selectedUser.email,
+                          role: selectedUser.role,
+                          status: selectedUser.status,
+                          careerGoal: selectedUser.careerGoal,
+                          userLevel: selectedUser.userLevel,
+                          skillCount: selectedUser.skills.length,
+                          resumePresent: selectedUser.resumePresent,
+                          mockInterviewCount: selectedUser.mockInterviewCount,
+                          solvedProblemsCount: selectedUser.solvedProblemsCount,
+                          createdAt: selectedUser.createdAt,
+                        };
+                        setSelectedUser(null);
+                        setReactivateTarget(target);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    >
+                      <span>✓</span>
+                      <span>Reactivate Account</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target: AdminUser = {
+                          id: selectedUser.id,
+                          name: selectedUser.name,
+                          email: selectedUser.email,
+                          role: selectedUser.role,
+                          status: selectedUser.status,
+                          careerGoal: selectedUser.careerGoal,
+                          userLevel: selectedUser.userLevel,
+                          skillCount: selectedUser.skills.length,
+                          resumePresent: selectedUser.resumePresent,
+                          mockInterviewCount: selectedUser.mockInterviewCount,
+                          solvedProblemsCount: selectedUser.solvedProblemsCount,
+                          createdAt: selectedUser.createdAt,
+                        };
+                        setSelectedUser(null);
+                        handleOpenSuspendModal(target);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    >
+                      <span>⚠️</span>
+                      <span>Suspend Account</span>
+                    </button>
+                  )
+                )}
+              </div>
+
               <button
                 onClick={() => setSelectedUser(null)}
                 className="px-5 py-2 rounded-xl bg-black text-white font-bold text-xs hover:bg-gray-800 transition cursor-pointer"

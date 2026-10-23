@@ -17,6 +17,11 @@ export interface AdminHealth {
 
 export interface AdminStatsOverview {
   totalUsers: number;
+  activeUsers?: number;
+  approvedMentors?: number;
+  pendingMentorApplications?: number;
+  activeMentorships?: number;
+  openSupportRequests?: number;
   totalResumes: number;
   totalQuizAttempts: number;
   totalSolvedProblems: number;

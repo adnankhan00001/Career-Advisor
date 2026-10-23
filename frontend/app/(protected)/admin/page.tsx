@@ -14,6 +14,7 @@ import {
   MentorshipAnalytics,
   TimeSeriesPoint,
 } from "@/lib/adminAnalyticsService";
+import { getAuditLogs, AdminAuditLog } from "@/lib/adminAuditService";
 
 type AnalyticsTab = "overview" | "users" | "career-prep" | "mentorship";
 
@@ -37,6 +38,10 @@ export default function AdminDashboardPage() {
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState<boolean>(true);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
+  // Recent Audit Logs state
+  const [recentAuditLogs, setRecentAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [isLoadingAuditLogs, setIsLoadingAuditLogs] = useState<boolean>(true);
+
   // Client-side route guard
   useEffect(() => {
     if (!isAuthLoading) {
@@ -52,6 +57,7 @@ export default function AdminDashboardPage() {
     if (user?.role === "ADMIN") {
       loadStats();
       loadAnalytics(selectedRange);
+      loadRecentAuditLogs();
     }
   }, [user, selectedRange]);
 
@@ -89,9 +95,22 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const loadRecentAuditLogs = async () => {
+    setIsLoadingAuditLogs(true);
+    try {
+      const data = await getAuditLogs({ page: 0, size: 5, sort: "createdAt,desc" });
+      setRecentAuditLogs(data.content || []);
+    } catch (err: any) {
+      console.error("Failed to load recent audit logs:", err);
+    } finally {
+      setIsLoadingAuditLogs(false);
+    }
+  };
+
   const handleRefresh = () => {
     loadStats();
     loadAnalytics(selectedRange);
+    loadRecentAuditLogs();
   };
 
   if (isAuthLoading || (user && user.role !== "ADMIN")) {
@@ -110,41 +129,47 @@ export default function AdminDashboardPage() {
       icon: "👥",
       color: "bg-blue-500/10 text-blue-600 border-blue-200",
       desc: "Total platform candidates",
+      href: "/admin/users",
     },
     {
-      title: "Resumes Analyzed",
-      value: stats?.totalResumes ?? careerPrepAnalytics?.totalResumes ?? 0,
-      icon: "📄",
+      title: "Active Users",
+      value: stats?.activeUsers ?? userAnalytics?.activeUsers ?? 0,
+      icon: "🟢",
       color: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
-      desc: "Parsed PDF & DOCX resumes",
+      desc: "Accounts in active status",
+      href: "/admin/users?status=ACTIVE",
     },
     {
-      title: "Quiz Assessments",
-      value: stats?.totalQuizAttempts ?? careerPrepAnalytics?.totalQuizAttempts ?? 0,
-      icon: "📝",
-      color: "bg-amber-500/10 text-amber-600 border-amber-200",
-      desc: "Skill calibration tests",
-    },
-    {
-      title: "DSA Solved",
-      value: stats?.totalSolvedProblems ?? careerPrepAnalytics?.totalSolvedProblems ?? 0,
-      icon: "💡",
+      title: "Approved Mentors",
+      value: stats?.approvedMentors ?? mentorshipAnalytics?.totalApprovedMentors ?? 0,
+      icon: "🎓",
       color: "bg-purple-500/10 text-purple-600 border-purple-200",
-      desc: "Accepted code submissions",
+      desc: "Verified active mentors",
+      href: "/admin/mentors",
     },
     {
-      title: "Mock Interviews",
-      value: stats?.totalMockInterviews ?? careerPrepAnalytics?.totalMockInterviews ?? 0,
-      icon: "🎯",
-      color: "bg-rose-500/10 text-rose-600 border-rose-200",
-      desc: "Initialized interview rounds",
+      title: "Pending Applications",
+      value: stats?.pendingMentorApplications ?? 0,
+      icon: "⏳",
+      color: "bg-amber-500/10 text-amber-600 border-amber-200",
+      desc: "Mentors awaiting review",
+      href: "/admin/mentors",
     },
     {
-      title: "Mentorship Requests",
-      value: mentorshipAnalytics?.totalRequests ?? 0,
+      title: "Active Mentorships",
+      value: stats?.activeMentorships ?? (mentorshipAnalytics?.statusDistribution?.["ACCEPTED"] ?? 0),
       icon: "🤝",
-      desc: "Total candidate mentorship requests",
       color: "bg-indigo-500/10 text-indigo-600 border-indigo-200",
+      desc: "Accepted candidate pairings",
+      href: "/admin/mentorships?status=ACCEPTED",
+    },
+    {
+      title: "Open Support Inquiries",
+      value: stats?.openSupportRequests ?? 0,
+      icon: "💬",
+      color: "bg-rose-500/10 text-rose-600 border-rose-200",
+      desc: "Active user-to-admin tickets",
+      href: "/admin/messages",
     },
   ];
 
@@ -192,10 +217,11 @@ export default function AdminDashboardPage() {
             <button
               onClick={handleRefresh}
               disabled={isLoadingStats || isLoadingAnalytics}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 border border-white/20 transition cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 border border-white/20 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400"
               title="Refresh Platform Analytics"
+              aria-label="Refresh platform analytics"
             >
-              <span className={isLoadingStats || isLoadingAnalytics ? "animate-spin" : ""}>🔄</span>
+              <span className={isLoadingStats || isLoadingAnalytics ? "animate-spin" : ""} aria-hidden="true">🔄</span>
             </button>
           </div>
         </div>
@@ -217,12 +243,13 @@ export default function AdminDashboardPage() {
       {/* High-Level Overview KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {kpis.map((kpi, idx) => (
-          <div
+          <Link
             key={idx}
-            className="bg-white rounded-2xl p-5 border border-gray-200 shadow-xs flex flex-col justify-between hover:border-gray-300 transition"
+            href={kpi.href}
+            className="bg-white rounded-2xl p-5 border border-gray-200 shadow-xs flex flex-col justify-between hover:border-gray-400 hover:shadow-sm transition cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 group-hover:text-gray-900 transition">
                 {kpi.title}
               </span>
               <span
@@ -232,12 +259,16 @@ export default function AdminDashboardPage() {
               </span>
             </div>
             <div>
-              <p className="text-2xl font-extrabold text-gray-900 tracking-tight">
-                {isLoadingStats && isLoadingAnalytics ? "..." : kpi.value.toLocaleString()}
+              <p className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center">
+                {isLoadingStats && isLoadingAnalytics ? (
+                  <span className="inline-block w-14 h-7 bg-gray-200 animate-pulse rounded-md" aria-label="Loading metric"></span>
+                ) : (
+                  kpi.value.toLocaleString()
+                )}
               </p>
               <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{kpi.desc}</p>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -315,6 +346,259 @@ export default function AdminDashboardPage() {
       {/* TAB CONTENT: Overview & Modules */}
       {activeTab === "overview" && (
         <div className="space-y-8">
+          {/* Administrative Action Center */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">Administrative Action Center</h2>
+                  {((stats?.pendingMentorApplications ?? 0) +
+                    (stats?.openSupportRequests ?? 0) +
+                    (mentorshipAnalytics?.statusDistribution?.["PENDING"] ?? 0) +
+                    (userAnalytics?.statusDistribution?.["SUSPENDED"] ?? 0)) > 0 ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      Action Required
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      All Systems Operational
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Immediate platform items requiring administrative triage, review, or oversight
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/admin/audit-logs"
+                  className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition"
+                >
+                  Audit Trail &rarr;
+                </Link>
+              </div>
+            </div>
+
+            {/* Action Items Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: Pending Mentor Applications */}
+              <div
+                className={`p-5 rounded-2xl border transition flex flex-col justify-between ${
+                  (stats?.pendingMentorApplications ?? 0) > 0
+                    ? "border-amber-300 bg-amber-50/50"
+                    : "border-gray-200 bg-gray-50/50"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-amber-700">
+                      Mentor Review
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        (stats?.pendingMentorApplications ?? 0) > 0
+                          ? "bg-amber-200 text-amber-900"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      {(stats?.pendingMentorApplications ?? 0) > 0 ? "ATTENTION" : "RESOLVED"}
+                    </span>
+                  </div>
+                  <p className="text-2xl font-extrabold text-gray-900">
+                    {stats?.pendingMentorApplications ?? 0}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {(stats?.pendingMentorApplications ?? 0) === 1
+                      ? "1 mentor application pending credential audit"
+                      : `${stats?.pendingMentorApplications ?? 0} mentor applications pending credential audit`}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-amber-200/60">
+                  <Link
+                    href="/admin/mentors"
+                    className="text-xs font-bold text-amber-800 hover:text-amber-900 flex items-center justify-between"
+                  >
+                    <span>Review Applicants</span>
+                    <span>&rarr;</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Card 2: Open Support Inquiries */}
+              <div
+                className={`p-5 rounded-2xl border transition flex flex-col justify-between ${
+                  (stats?.openSupportRequests ?? 0) > 0
+                    ? "border-rose-300 bg-rose-50/50"
+                    : "border-gray-200 bg-gray-50/50"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
+                      Support Inbox
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        (stats?.openSupportRequests ?? 0) > 0
+                          ? "bg-rose-200 text-rose-900"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      {(stats?.openSupportRequests ?? 0) > 0 ? "ACTIVE" : "RESOLVED"}
+                    </span>
+                  </div>
+                  <p className="text-2xl font-extrabold text-gray-900">
+                    {stats?.openSupportRequests ?? 0}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {(stats?.openSupportRequests ?? 0) === 1
+                      ? "1 candidate support request in queue"
+                      : `${stats?.openSupportRequests ?? 0} candidate support requests in queue`}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-rose-200/60">
+                  <Link
+                    href="/admin/messages"
+                    className="text-xs font-bold text-rose-800 hover:text-rose-900 flex items-center justify-between"
+                  >
+                    <span>Open Messages Desk</span>
+                    <span>&rarr;</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Card 3: Pending Mentorship Pairings */}
+              <div
+                className={`p-5 rounded-2xl border transition flex flex-col justify-between ${
+                  (mentorshipAnalytics?.statusDistribution?.["PENDING"] ?? 0) > 0
+                    ? "border-indigo-300 bg-indigo-50/50"
+                    : "border-gray-200 bg-gray-50/50"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-700">
+                      Pairing Queue
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        (mentorshipAnalytics?.statusDistribution?.["PENDING"] ?? 0) > 0
+                          ? "bg-indigo-200 text-indigo-900"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      {(mentorshipAnalytics?.statusDistribution?.["PENDING"] ?? 0) > 0 ? "AWAITING" : "CLEAR"}
+                    </span>
+                  </div>
+                  <p className="text-2xl font-extrabold text-gray-900">
+                    {mentorshipAnalytics?.statusDistribution?.["PENDING"] ?? 0}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {(mentorshipAnalytics?.statusDistribution?.["PENDING"] ?? 0) === 1
+                      ? "1 pairing request awaiting mentor match/response"
+                      : `${mentorshipAnalytics?.statusDistribution?.["PENDING"] ?? 0} pairing requests awaiting mentor match/response`}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-indigo-200/60">
+                  <Link
+                    href="/admin/mentorships"
+                    className="text-xs font-bold text-indigo-800 hover:text-indigo-900 flex items-center justify-between"
+                  >
+                    <span>Inspect Mentorships</span>
+                    <span>&rarr;</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Card 4: Suspended Accounts */}
+              <div
+                className={`p-5 rounded-2xl border transition flex flex-col justify-between ${
+                  (userAnalytics?.statusDistribution?.["SUSPENDED"] ?? 0) > 0
+                    ? "border-red-300 bg-red-50/50"
+                    : "border-gray-200 bg-gray-50/50"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-red-700">
+                      Accounts On Hold
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        (userAnalytics?.statusDistribution?.["SUSPENDED"] ?? 0) > 0
+                          ? "bg-red-200 text-red-900"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      {(userAnalytics?.statusDistribution?.["SUSPENDED"] ?? 0) > 0 ? "HOLD" : "NONE"}
+                    </span>
+                  </div>
+                  <p className="text-2xl font-extrabold text-gray-900">
+                    {userAnalytics?.statusDistribution?.["SUSPENDED"] ?? 0}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {(userAnalytics?.statusDistribution?.["SUSPENDED"] ?? 0) === 1
+                      ? "1 suspended account under review"
+                      : `${userAnalytics?.statusDistribution?.["SUSPENDED"] ?? 0} suspended accounts under review`}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-red-200/60">
+                  <Link
+                    href="/admin/users"
+                    className="text-xs font-bold text-red-800 hover:text-red-900 flex items-center justify-between"
+                  >
+                    <span>Manage Users</span>
+                    <span>&rarr;</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Operational Learning & Calibration Metrics */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Student Learning & Preparation Metrics</h2>
+                <p className="text-xs text-gray-500">Live platform candidate activity across core preparation modules</p>
+              </div>
+              <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">
+                Platform Activity
+              </span>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <span className="text-xs font-bold text-gray-500 uppercase">Resumes Analyzed</span>
+                <p className="text-2xl font-extrabold text-emerald-600 mt-1">
+                  {stats?.totalResumes?.toLocaleString() ?? "0"}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Parsed PDF & DOCX profiles</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <span className="text-xs font-bold text-gray-500 uppercase">Quiz Assessments</span>
+                <p className="text-2xl font-extrabold text-amber-600 mt-1">
+                  {stats?.totalQuizAttempts?.toLocaleString() ?? "0"}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Skill calibrations completed</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <span className="text-xs font-bold text-gray-500 uppercase">DSA Problems Solved</span>
+                <p className="text-2xl font-extrabold text-purple-600 mt-1">
+                  {stats?.totalSolvedProblems?.toLocaleString() ?? "0"}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Accepted problem solutions</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <span className="text-xs font-bold text-gray-500 uppercase">Mock Interviews</span>
+                <p className="text-2xl font-extrabold text-rose-600 mt-1">
+                  {stats?.totalCompletedInterviews?.toLocaleString() ?? "0"} / {stats?.totalMockInterviews?.toLocaleString() ?? "0"}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Completed vs initialized</p>
+              </div>
+            </div>
+          </div>
+
           {/* Analytics Breakdown Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Career Goals Distribution */}
@@ -406,6 +690,74 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
+          {/* Recent Administrative Activity */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Recent Administrative Activity</h2>
+                <p className="text-xs text-gray-500">
+                  Forensic audit trail of latest governance operations and status transitions
+                </p>
+              </div>
+              <Link
+                href="/admin/audit-logs"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-100 text-gray-800 text-xs font-bold hover:bg-gray-200 transition self-start sm:self-auto"
+              >
+                <span>View Full Audit Log</span>
+                <span>&rarr;</span>
+              </Link>
+            </div>
+
+            {isLoadingAuditLogs ? (
+              <div className="py-8 flex justify-center items-center">
+                <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : recentAuditLogs.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                <p>No recent administrative actions recorded.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {recentAuditLogs.map((log) => {
+                  const actionColor =
+                    log.action.includes("APPROVED") || log.action.includes("REACTIVATED")
+                      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                      : log.action.includes("SUSPENDED") || log.action.includes("DEACTIVATED") || log.action.includes("REJECTED")
+                      ? "bg-red-100 text-red-800 border-red-200"
+                      : "bg-blue-100 text-blue-800 border-blue-200";
+
+                  return (
+                    <div key={log.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${actionColor}`}>
+                            {log.action}
+                          </span>
+                          <span className="text-xs font-semibold text-gray-700">
+                            by {log.adminName || log.adminEmail || `Admin #${log.adminUserId || "?"}`}
+                          </span>
+                          <span className="text-[10px] text-gray-400">•</span>
+                          <span className="text-[11px] font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                            {log.targetType}{log.targetId ? ` #${log.targetId}` : ""}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600">{log.summary}</p>
+                      </div>
+                      <div className="text-right text-[11px] text-gray-400 whitespace-nowrap self-start sm:self-auto">
+                        {new Date(log.createdAt).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Governance & Content Management Modules Grid */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-xs space-y-6">
             <div>
@@ -479,53 +831,68 @@ export default function AdminDashboardPage() {
                 </p>
               </Link>
 
-              {/* Phase 13 Placeholder: Careers Management */}
-              <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/70 opacity-80">
+              {/* Active Module: Support & Inquiries */}
+              <Link
+                href="/admin/messages"
+                className="p-5 rounded-2xl border-2 border-rose-500 bg-rose-50/40 hover:bg-rose-50 transition block group relative"
+              >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="w-10 h-10 rounded-xl bg-gray-200 text-gray-700 flex items-center justify-center text-lg">
-                    🚀
+                  <span className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center text-lg shadow-sm">
+                    💬
                   </span>
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-200 text-gray-600">
-                    Phase 13 Roadmap
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">
+                    ACTIVE
                   </span>
                 </div>
-                <h3 className="font-bold text-gray-700 text-sm">Career Tracks Management</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Create, update, and manage technical career tracks and matching weight algorithms.
+                <h3 className="font-bold text-gray-900 group-hover:text-rose-700 transition text-sm">
+                  Support & Inquiries
+                </h3>
+                <p className="text-xs text-gray-600 mt-1">
+                  Manage user-to-admin support threads, triage questions, and communicate directly with candidates.
                 </p>
-              </div>
+              </Link>
 
-              {/* Phase 13 Placeholder: Roadmaps Management */}
-              <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/70 opacity-80">
+              {/* Active Module: Security & Audit Trail */}
+              <Link
+                href="/admin/audit-logs"
+                className="p-5 rounded-2xl border-2 border-gray-700 bg-gray-50/70 hover:bg-gray-100 transition block group relative"
+              >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="w-10 h-10 rounded-xl bg-gray-200 text-gray-700 flex items-center justify-center text-lg">
-                    🗺️
+                  <span className="w-10 h-10 rounded-xl bg-gray-900 text-white flex items-center justify-center text-lg shadow-sm">
+                    🛡️
                   </span>
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-200 text-gray-600">
-                    Phase 13 Roadmap
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-gray-900 text-white">
+                    ACTIVE
                   </span>
                 </div>
-                <h3 className="font-bold text-gray-700 text-sm">Roadmaps & Milestones</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Define step-by-step curriculum milestones and interactive checklist structures.
+                <h3 className="font-bold text-gray-900 group-hover:text-gray-900 transition text-sm">
+                  Security & Audit Trail
+                </h3>
+                <p className="text-xs text-gray-600 mt-1">
+                  Forensic activity log tracking administrative suspensions, role adjustments, and system events.
                 </p>
-              </div>
+              </Link>
 
-              {/* Phase 13 Placeholder: Skills Dictionary */}
-              <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/70 opacity-80">
+              {/* Active Module: Platform Settings */}
+              <Link
+                href="/admin/settings"
+                className="p-5 rounded-2xl border-2 border-blue-500 bg-blue-50/40 hover:bg-blue-50 transition block group relative"
+              >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="w-10 h-10 rounded-xl bg-gray-200 text-gray-700 flex items-center justify-center text-lg">
-                    ⚡
+                  <span className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg shadow-sm">
+                    ⚙️
                   </span>
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-200 text-gray-600">
-                    Phase 13 Roadmap
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-600 text-white">
+                    ACTIVE
                   </span>
                 </div>
-                <h3 className="font-bold text-gray-700 text-sm">Skills Vocabulary & Aliases</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Manage canonical technical skill taxonomy and regex alias normalization mappings.
+                <h3 className="font-bold text-gray-900 group-hover:text-blue-700 transition text-sm">
+                  System Settings
+                </h3>
+                <p className="text-xs text-gray-600 mt-1">
+                  Configure mentorship capacity limits, session timeouts, and platform-wide governance rules.
                 </p>
-              </div>
+              </Link>
             </div>
           </div>
         </div>
@@ -1004,9 +1371,13 @@ function TimeSeriesBarChart({
   const totalInSeries = data.reduce((sum, d) => sum + d.count, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="region" aria-label="Time series activity chart">
       {/* Chart Canvas */}
-      <div className="h-56 flex items-end gap-1 sm:gap-2 px-2 pt-6 pb-2 border-b border-gray-200">
+      <div
+        className="h-56 flex items-end gap-1 sm:gap-2 px-2 pt-6 pb-2 border-b border-gray-200"
+        role="group"
+        aria-label="Activity trend visualization"
+      >
         {data.map((point, idx) => {
           const heightPct = Math.round((point.count / maxVal) * 100);
           const dateObj = new Date(point.date);
@@ -1017,10 +1388,12 @@ function TimeSeriesBarChart({
           return (
             <div
               key={idx}
-              className="flex-1 flex flex-col items-center h-full justify-end group relative"
+              className="flex-1 flex flex-col items-center h-full justify-end group relative focus:outline-none"
+              tabIndex={0}
+              aria-label={`${displayLabel}: ${point.count} events`}
             >
               {/* Hover Tooltip */}
-              <div className="absolute -top-10 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+              <div className="absolute -top-10 hidden group-hover:flex group-focus:flex flex-col items-center z-20 pointer-events-none">
                 <div className="bg-gray-900 text-white text-[11px] font-bold py-1 px-2.5 rounded-lg shadow-lg whitespace-nowrap">
                   {displayLabel}: <span className="text-emerald-400">{point.count}</span>
                 </div>

@@ -353,6 +353,33 @@ export default function AdminMentorsPage() {
     }
   };
 
+  // Pagination states
+  const [pagePending, setPagePending] = useState(0);
+  const [pageApproved, setPageApproved] = useState(0);
+  const [pageSuspended, setPageSuspended] = useState(0);
+  const MENTOR_PAGE_SIZE = 8;
+
+  // Reset pagination on search change or tab change
+  useEffect(() => {
+    setPagePending(0);
+    setPageApproved(0);
+    setPageSuspended(0);
+  }, [searchQuery, activeTab]);
+
+  // Filtered Pending Applications
+  const filteredPendingApplications = useMemo(() => {
+    if (!searchQuery.trim()) return pendingApplications;
+    const q = searchQuery.toLowerCase();
+    return pendingApplications.filter(
+      (m) =>
+        m.name?.toLowerCase().includes(q) ||
+        m.email?.toLowerCase().includes(q) ||
+        m.company?.toLowerCase().includes(q) ||
+        m.jobTitle?.toLowerCase().includes(q) ||
+        m.expertiseAreas?.toLowerCase().includes(q)
+    );
+  }, [pendingApplications, searchQuery]);
+
   // Filtered Approved Mentors
   const filteredApprovedMentors = useMemo(() => {
     if (!searchQuery.trim()) return approvedMentors;
@@ -381,6 +408,22 @@ export default function AdminMentorsPage() {
     );
   }, [suspendedMentors, searchQuery]);
 
+  // Paginated Lists
+  const paginatedPendingApplications = useMemo(() => {
+    const start = pagePending * MENTOR_PAGE_SIZE;
+    return filteredPendingApplications.slice(start, start + MENTOR_PAGE_SIZE);
+  }, [filteredPendingApplications, pagePending]);
+
+  const paginatedApprovedMentors = useMemo(() => {
+    const start = pageApproved * MENTOR_PAGE_SIZE;
+    return filteredApprovedMentors.slice(start, start + MENTOR_PAGE_SIZE);
+  }, [filteredApprovedMentors, pageApproved]);
+
+  const paginatedSuspendedMentors = useMemo(() => {
+    const start = pageSuspended * MENTOR_PAGE_SIZE;
+    return filteredSuspendedMentors.slice(start, start + MENTOR_PAGE_SIZE);
+  }, [filteredSuspendedMentors, pageSuspended]);
+
   // Render Access Denied / Auth Checking Spinner
   if (isAuthLoading || (user && user.role !== "ADMIN")) {
     return (
@@ -402,15 +445,15 @@ export default function AdminMentorsPage() {
                 Admin Dashboard
               </Link>
               <span>›</span>
-              <span>Mentor Management</span>
+              <span>Mentor Governance</span>
             </div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-bold uppercase tracking-wider">
               <span>🛡️ Platform Governance</span>
               <span>•</span>
-              <span>Phase 3B.5 Mentorship Review</span>
+              <span>Credential & Verification Review</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Mentor Management
+              Mentor Governance
             </h1>
             <p className="text-gray-300 text-sm max-w-2xl">
               Review mentor applications, manage verified mentors, and configure mentorship capacity.
@@ -420,18 +463,19 @@ export default function AdminMentorsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/mentorship"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 border border-white/20 transition cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 border border-white/20 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
             >
               <span>View Hub</span>
-              <span>👥</span>
+              <span aria-hidden="true">👥</span>
             </Link>
             <button
               onClick={loadAdminData}
               disabled={isLoadingData}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 shadow-md transition cursor-pointer disabled:opacity-50"
+              aria-label="Refresh mentor governance data"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 shadow-md transition cursor-pointer disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
               <span>Refresh</span>
-              <span className={isLoadingData ? "animate-spin" : ""}>🔄</span>
+              <span className={isLoadingData ? "animate-spin" : ""} aria-hidden="true">🔄</span>
             </button>
           </div>
         </div>
@@ -669,6 +713,17 @@ export default function AdminMentorsPage() {
                 Evaluate candidates applying to become verified mentors on OneStop Career Advisor.
               </p>
             </div>
+
+            {/* Search Filter for Pending */}
+            <div className="w-full sm:w-72">
+              <input
+                type="text"
+                placeholder="Search pending by name, company, skill..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
           </div>
 
           {isLoadingData ? (
@@ -676,141 +731,185 @@ export default function AdminMentorsPage() {
               <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
               <p className="text-sm text-gray-500">Loading pending applications...</p>
             </div>
-          ) : pendingApplications.length === 0 ? (
+          ) : filteredPendingApplications.length === 0 ? (
             <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 space-y-3">
-              <span className="text-4xl">🎉</span>
-              <h3 className="text-base font-bold text-gray-900">No Pending Applications</h3>
+              <span className="text-4xl">{searchQuery ? "🔍" : "🎉"}</span>
+              <h3 className="text-base font-bold text-gray-900">
+                {searchQuery ? "No Matching Applications" : "No Pending Applications"}
+              </h3>
               <p className="text-xs text-gray-500 max-w-md mx-auto">
-                All submitted mentor applications have been reviewed. When new industry professionals apply, their profiles will appear here for governance.
+                {searchQuery
+                  ? `No applications matched "${searchQuery}". Try searching for another name, company, or domain expertise.`
+                  : "All submitted mentor applications have been reviewed. When new industry professionals apply, their profiles will appear here for governance."}
               </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold transition cursor-pointer"
+                >
+                  Clear Search
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {pendingApplications.map((app) => (
-                <div
-                  key={app.id}
-                  className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs hover:border-gray-300 transition flex flex-col lg:flex-row lg:items-center justify-between gap-6"
-                >
-                  {/* Left Column: Applicant Bio & Credentials */}
-                  <div className="space-y-3 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-bold text-gray-900">{app.name}</h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        {app.verificationStatus}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        Applied {new Date(app.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
-                      <span className="font-semibold text-gray-900">
-                        {app.jobTitle} at {app.company}
-                      </span>
-                      <span>•</span>
-                      <span>{app.yearsOfExperience} yrs experience</span>
-                      <span>•</span>
-                      <span>Requested Capacity: {app.maxMentees} mentees</span>
-                      <span>•</span>
-                      <span className="text-gray-500">{app.email}</span>
-                    </div>
-
-                    {app.bio && (
-                      <p className="text-xs text-gray-600 line-clamp-2 italic">
-                        &quot;{app.bio}&quot;
-                      </p>
-                    )}
-
-                    {/* Expertise Tags */}
-                    {app.expertiseAreas && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {app.expertiseAreas
-                          .split(",")
-                          .map((tag) => tag.trim())
-                          .filter(Boolean)
-                          .map((tag, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[11px] font-medium border border-purple-100"
-                            >
-                              {tag}
-                            </span>
-                          ))}
+            <>
+              <div className="grid grid-cols-1 gap-4">
+                {paginatedPendingApplications.map((app) => (
+                  <div
+                    key={app.id}
+                    className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs hover:border-gray-300 transition flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+                  >
+                    {/* Left Column: Applicant Bio & Credentials */}
+                    <div className="space-y-3 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-bold text-gray-900">{app.name}</h3>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          {app.verificationStatus}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Applied {new Date(app.createdAt).toLocaleDateString()}
+                        </span>
                       </div>
-                    )}
 
-                    {/* External links preview safely rendered */}
-                    <div className="flex flex-wrap items-center gap-3 pt-1 text-xs font-semibold">
-                      {app.linkedinUrl && (
-                        <a
-                          href={app.linkedinUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline flex items-center gap-1"
-                        >
-                          <span>LinkedIn</span>
-                          <span>↗</span>
-                        </a>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                        <span className="font-semibold text-gray-900">
+                          {app.jobTitle} at {app.company}
+                        </span>
+                        <span>•</span>
+                        <span>{app.yearsOfExperience} yrs experience</span>
+                        <span>•</span>
+                        <span>Requested Capacity: {app.maxMentees} mentees</span>
+                        <span>•</span>
+                        <span className="text-gray-500">{app.email}</span>
+                      </div>
+
+                      {app.bio && (
+                        <p className="text-xs text-gray-600 line-clamp-2 italic">
+                          &quot;{app.bio}&quot;
+                        </p>
                       )}
-                      {app.githubUrl && (
-                        <a
-                          href={app.githubUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-gray-800 hover:underline flex items-center gap-1"
-                        >
-                          <span>GitHub</span>
-                          <span>↗</span>
-                        </a>
+
+                      {/* Expertise Tags */}
+                      {app.expertiseAreas && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {app.expertiseAreas
+                            .split(",")
+                            .map((tag) => tag.trim())
+                            .filter(Boolean)
+                            .map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[11px] font-medium border border-purple-100"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                        </div>
                       )}
-                      {app.portfolioUrl && (
-                        <a
-                          href={app.portfolioUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-700 hover:underline flex items-center gap-1"
-                        >
-                          <span>Portfolio</span>
-                          <span>↗</span>
-                        </a>
-                      )}
+
+                      {/* External links preview safely rendered */}
+                      <div className="flex flex-wrap items-center gap-3 pt-1 text-xs font-semibold">
+                        {app.linkedinUrl && (
+                          <a
+                            href={app.linkedinUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            <span>LinkedIn</span>
+                            <span>↗</span>
+                          </a>
+                        )}
+                        {app.githubUrl && (
+                          <a
+                            href={app.githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-800 hover:underline flex items-center gap-1"
+                          >
+                            <span>GitHub</span>
+                            <span>↗</span>
+                          </a>
+                        )}
+                        {app.portfolioUrl && (
+                          <a
+                            href={app.portfolioUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-700 hover:underline flex items-center gap-1"
+                          >
+                            <span>Portfolio</span>
+                            <span>↗</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right Column: Actions */}
+                    <div className="flex sm:flex-row lg:flex-col items-stretch gap-2 min-w-[170px]">
+                      <button
+                        onClick={() => setInspectModalProfile(app)}
+                        className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold text-xs transition cursor-pointer text-center"
+                      >
+                        Review Application
+                      </button>
+                      <button
+                        onClick={() => handleApproveApplication(app.id)}
+                        disabled={actionLoadingId === app.id}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-50 text-center flex items-center justify-center gap-1.5"
+                      >
+                        {actionLoadingId === app.id ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <span>✓</span>
+                        )}
+                        <span>Approve</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRejectModalProfile(app);
+                          setRejectReason("");
+                        }}
+                        disabled={actionLoadingId === app.id}
+                        className="px-4 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 font-bold text-xs transition cursor-pointer text-center"
+                      >
+                        Reject with Note
+                      </button>
                     </div>
                   </div>
+                ))}
+              </div>
 
-                  {/* Right Column: Actions */}
-                  <div className="flex sm:flex-row lg:flex-col items-stretch gap-2 min-w-[170px]">
+              {/* Pagination Controls */}
+              {filteredPendingApplications.length > MENTOR_PAGE_SIZE && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 px-2 text-xs text-gray-600">
+                  <span>
+                    Showing {pagePending * MENTOR_PAGE_SIZE + 1} to{" "}
+                    {Math.min((pagePending + 1) * MENTOR_PAGE_SIZE, filteredPendingApplications.length)} of{" "}
+                    {filteredPendingApplications.length} applications
+                  </span>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setInspectModalProfile(app)}
-                      className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold text-xs transition cursor-pointer text-center"
+                      onClick={() => setPagePending((p) => Math.max(0, p - 1))}
+                      disabled={pagePending === 0}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 font-bold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
                     >
-                      Review Application
+                      ← Previous
                     </button>
+                    <span className="font-semibold text-gray-800">
+                      Page {pagePending + 1} of {Math.ceil(filteredPendingApplications.length / MENTOR_PAGE_SIZE)}
+                    </span>
                     <button
-                      onClick={() => handleApproveApplication(app.id)}
-                      disabled={actionLoadingId === app.id}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-50 text-center flex items-center justify-center gap-1.5"
+                      onClick={() => setPagePending((p) => p + 1)}
+                      disabled={(pagePending + 1) * MENTOR_PAGE_SIZE >= filteredPendingApplications.length}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 font-bold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
                     >
-                      {actionLoadingId === app.id ? (
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <span>✓</span>
-                      )}
-                      <span>Approve</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setRejectModalProfile(app);
-                        setRejectReason("");
-                      }}
-                      disabled={actionLoadingId === app.id}
-                      className="px-4 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 font-bold text-xs transition cursor-pointer text-center"
-                    >
-                      Reject with Note
+                      Next →
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </section>
       )}
@@ -848,108 +947,149 @@ export default function AdminMentorsPage() {
               <p className="text-sm text-gray-500">Loading approved mentors...</p>
             </div>
           ) : filteredApprovedMentors.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 space-y-2">
+            <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 space-y-3">
+              <span className="text-4xl">{searchQuery ? "🔍" : "👥"}</span>
               <p className="text-base font-bold text-gray-700">No approved mentors found</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
                 {searchQuery
-                  ? "No verified mentors match your search query."
+                  ? `No verified mentors matched "${searchQuery}". Try searching for another name, company, or domain.`
                   : "No mentors are currently approved. Review pending applications to approve candidates."}
               </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold transition cursor-pointer"
+                >
+                  Clear Search
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredApprovedMentors.map((mentor) => (
-                <div
-                  key={mentor.id}
-                  className="bg-white rounded-2xl border border-gray-200 p-5 shadow-xs hover:border-gray-300 transition flex flex-col justify-between gap-4"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-gray-900 text-base">{mentor.name}</h3>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                            {mentor.verificationStatus}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 font-medium">
-                          {mentor.jobTitle} at {mentor.company}
-                        </p>
-                        <p className="text-[11px] text-gray-400">{mentor.email} • {mentor.yearsOfExperience} yrs exp</p>
-                      </div>
-
-                      <div className="text-right">
-                        <span
-                          className={`inline-block px-2.5 py-1 rounded-lg text-xs font-extrabold ${
-                            mentor.availableSlots > 0
-                              ? "bg-blue-50 text-blue-700 border border-blue-200"
-                              : "bg-gray-100 text-gray-700 border border-gray-200"
-                          }`}
-                        >
-                          {mentor.activeMenteesCount} / {mentor.maxMentees} Mentees
-                        </span>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {mentor.availableSlots} slots free
-                        </p>
-                      </div>
-                    </div>
-
-                    {mentor.bio && (
-                      <p className="text-xs text-gray-600 line-clamp-2">
-                        {mentor.bio}
-                      </p>
-                    )}
-
-                    {mentor.expertiseAreas && (
-                      <div className="flex flex-wrap gap-1">
-                        {mentor.expertiseAreas
-                          .split(",")
-                          .map((s) => s.trim())
-                          .filter(Boolean)
-                          .map((tag, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] rounded-md font-medium"
-                            >
-                              {tag}
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {paginatedApprovedMentors.map((mentor) => (
+                  <div
+                    key={mentor.id}
+                    className="bg-white rounded-2xl border border-gray-200 p-5 shadow-xs hover:border-gray-300 transition flex flex-col justify-between gap-4"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-gray-900 text-base">{mentor.name}</h3>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                              {mentor.verificationStatus}
                             </span>
-                          ))}
+                          </div>
+                          <p className="text-xs text-gray-600 font-medium">
+                            {mentor.jobTitle} at {mentor.company}
+                          </p>
+                          <p className="text-[11px] text-gray-400">{mentor.email} • {mentor.yearsOfExperience} yrs exp</p>
+                        </div>
+
+                        <div className="text-right">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-lg text-xs font-extrabold ${
+                              mentor.availableSlots > 0
+                                ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                : "bg-gray-100 text-gray-700 border border-gray-200"
+                            }`}
+                          >
+                            {mentor.activeMenteesCount} / {mentor.maxMentees} Mentees
+                          </span>
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            {mentor.availableSlots} slots free
+                          </p>
+                        </div>
                       </div>
-                    )}
+
+                      {mentor.bio && (
+                        <p className="text-xs text-gray-600 line-clamp-2">
+                          {mentor.bio}
+                        </p>
+                      )}
+
+                      {mentor.expertiseAreas && (
+                        <div className="flex flex-wrap gap-1">
+                          {mentor.expertiseAreas
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean)
+                            .map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] rounded-md font-medium"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions Strip */}
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setInspectModalProfile(mentor)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-100 border border-gray-200 transition cursor-pointer"
+                        >
+                          Inspect Dossier
+                        </button>
+                        <Link
+                          href={`/mentorship/${mentor.id}`}
+                          className="text-xs font-bold text-purple-700 hover:text-purple-900 hover:underline"
+                        >
+                          Public Profile ↗
+                        </Link>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSuspendModalProfile(mentor);
+                            setSuspendReason("");
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 transition cursor-pointer"
+                        >
+                          Suspend Mentor
+                        </button>
+                      </div>
+                    </div>
                   </div>
+                ))}
+              </div>
 
-                  {/* Actions Strip */}
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setInspectModalProfile(mentor)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-100 border border-gray-200 transition cursor-pointer"
-                      >
-                        Inspect Dossier
-                      </button>
-                      <Link
-                        href={`/mentorship/${mentor.id}`}
-                        className="text-xs font-bold text-purple-700 hover:text-purple-900 hover:underline"
-                      >
-                        Public Profile ↗
-                      </Link>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setSuspendModalProfile(mentor);
-                          setSuspendReason("");
-                        }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 transition cursor-pointer"
-                      >
-                        Suspend Mentor
-                      </button>
-                    </div>
+              {/* Section B Pagination Controls */}
+              {filteredApprovedMentors.length > MENTOR_PAGE_SIZE && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 px-2 text-xs text-gray-600">
+                  <span>
+                    Showing {pageApproved * MENTOR_PAGE_SIZE + 1} to{" "}
+                    {Math.min((pageApproved + 1) * MENTOR_PAGE_SIZE, filteredApprovedMentors.length)} of{" "}
+                    {filteredApprovedMentors.length} mentors
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPageApproved((p) => Math.max(0, p - 1))}
+                      disabled={pageApproved === 0}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 font-bold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+                    >
+                      ← Previous
+                    </button>
+                    <span className="font-semibold text-gray-800">
+                      Page {pageApproved + 1} of {Math.ceil(filteredApprovedMentors.length / MENTOR_PAGE_SIZE)}
+                    </span>
+                    <button
+                      onClick={() => setPageApproved((p) => p + 1)}
+                      disabled={(pageApproved + 1) * MENTOR_PAGE_SIZE >= filteredApprovedMentors.length}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 font-bold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+                    >
+                      Next →
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </section>
       )}
@@ -987,64 +1127,106 @@ export default function AdminMentorsPage() {
               <p className="text-sm text-gray-500">Loading suspended mentors...</p>
             </div>
           ) : filteredSuspendedMentors.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 space-y-2">
+            <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 space-y-3">
               <span className="text-3xl">🛡️</span>
               <p className="text-base font-bold text-gray-700">No Suspended Mentors</p>
-              <p className="text-xs text-gray-500">
-                There are currently no suspended mentor accounts on the platform.
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                {searchQuery
+                  ? `No suspended mentors matched "${searchQuery}".`
+                  : "There are currently no suspended mentor accounts on the platform."}
               </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold transition cursor-pointer"
+                >
+                  Clear Search
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredSuspendedMentors.map((mentor) => (
-                <div
-                  key={mentor.id}
-                  className="bg-white rounded-2xl border border-red-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-gray-900 text-base">{mentor.name}</h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
-                        {mentor.verificationStatus}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        Updated {new Date(mentor.updatedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-gray-600">
-                      <span className="font-semibold text-gray-900">
-                        {mentor.jobTitle} at {mentor.company}
-                      </span>
-                      <span> • {mentor.email}</span>
-                    </div>
-
-                    {mentor.rejectionReason && (
-                      <div className="p-3 rounded-xl bg-red-50/70 border border-red-100 text-xs text-red-800">
-                        <span className="font-bold">Suspension Reason: </span>
-                        <span>{mentor.rejectionReason}</span>
+            <>
+              <div className="grid grid-cols-1 gap-4">
+                {paginatedSuspendedMentors.map((mentor) => (
+                  <div
+                    key={mentor.id}
+                    className="bg-white rounded-2xl border border-red-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-gray-900 text-base">{mentor.name}</h3>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+                          {mentor.verificationStatus}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Updated {new Date(mentor.updatedAt).toLocaleDateString()}
+                        </span>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      <div className="text-xs text-gray-600">
+                        <span className="font-semibold text-gray-900">
+                          {mentor.jobTitle} at {mentor.company}
+                        </span>
+                        <span> • {mentor.email}</span>
+                      </div>
+
+                      {mentor.rejectionReason && (
+                        <div className="p-3 rounded-xl bg-red-50/70 border border-red-100 text-xs text-red-800">
+                          <span className="font-bold">Suspension Reason: </span>
+                          <span>{mentor.rejectionReason}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      <button
+                        onClick={() => setInspectModalProfile(mentor)}
+                        className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold text-xs transition cursor-pointer"
+                      >
+                        Inspect Dossier
+                      </button>
+                      <button
+                        onClick={() => setReactivateModalProfile(mentor)}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <span>🔄</span>
+                        <span>Reactivate Mentor</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Section C Pagination Controls */}
+              {filteredSuspendedMentors.length > MENTOR_PAGE_SIZE && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 px-2 text-xs text-gray-600">
+                  <span>
+                    Showing {pageSuspended * MENTOR_PAGE_SIZE + 1} to{" "}
+                    {Math.min((pageSuspended + 1) * MENTOR_PAGE_SIZE, filteredSuspendedMentors.length)} of{" "}
+                    {filteredSuspendedMentors.length} mentors
+                  </span>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setInspectModalProfile(mentor)}
-                      className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold text-xs transition cursor-pointer"
+                      onClick={() => setPageSuspended((p) => Math.max(0, p - 1))}
+                      disabled={pageSuspended === 0}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 font-bold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
                     >
-                      Inspect Dossier
+                      ← Previous
                     </button>
+                    <span className="font-semibold text-gray-800">
+                      Page {pageSuspended + 1} of {Math.ceil(filteredSuspendedMentors.length / MENTOR_PAGE_SIZE)}
+                    </span>
                     <button
-                      onClick={() => setReactivateModalProfile(mentor)}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                      onClick={() => setPageSuspended((p) => p + 1)}
+                      disabled={(pageSuspended + 1) * MENTOR_PAGE_SIZE >= filteredSuspendedMentors.length}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 font-bold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
                     >
-                      <span>🔄</span>
-                      <span>Reactivate Mentor</span>
+                      Next →
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </section>
       )}

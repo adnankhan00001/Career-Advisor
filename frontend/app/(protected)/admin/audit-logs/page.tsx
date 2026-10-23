@@ -69,7 +69,17 @@ export default function AdminAuditLogsPage() {
     }
   };
 
+  const isDateRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
+
   const loadLogs = useCallback(async () => {
+    if (startDate && endDate && startDate > endDate) {
+      setError("Start date cannot be after end date.");
+      setLogs([]);
+      setTotalPages(0);
+      setTotalElements(0);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -107,10 +117,30 @@ export default function AdminAuditLogsPage() {
     }
   }, [isAuthenticated, user, loadLogs]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedLog) {
+        setSelectedLog(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedLog]);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(0);
     setAppliedSearch(searchInput.trim());
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+    setPage(0);
   };
 
   const handleResetFilters = () => {
@@ -134,6 +164,7 @@ export default function AdminAuditLogsPage() {
       case "MENTOR_APPROVED":
       case "USER_REACTIVATED":
       case "MENTOR_REACTIVATED":
+      case "SUPPORT_TICKET_RESOLVED":
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
       case "USER_SUSPENDED":
       case "USER_DEACTIVATED":
@@ -141,9 +172,12 @@ export default function AdminAuditLogsPage() {
       case "MENTOR_SUSPENDED":
       case "MENTORSHIP_TERMINATED":
         return "bg-rose-50 text-rose-700 border-rose-200";
+      case "SUPPORT_TICKET_REOPENED":
+        return "bg-amber-50 text-amber-700 border-amber-200";
       case "MENTOR_CAPACITY_UPDATED":
       case "USER_ROLE_CHANGED":
       case "PLATFORM_SETTING_UPDATED":
+      case "SUPPORT_REPLY_SENT":
         return "bg-blue-50 text-blue-700 border-blue-200";
       default:
         return "bg-gray-50 text-gray-700 border-gray-200";
@@ -181,6 +215,13 @@ export default function AdminAuditLogsPage() {
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Top Breadcrumb Navigation */}
+      <nav aria-label="Breadcrumb" className="text-xs text-gray-500 flex items-center gap-1.5 pb-1">
+        <Link href="/admin" className="hover:text-indigo-700 transition font-medium">Admin Dashboard</Link>
+        <span>›</span>
+        <span className="text-gray-800 font-semibold">Audit Logs</span>
+      </nav>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-200/80 shadow-sm">
         <div>
@@ -234,60 +275,82 @@ export default function AdminAuditLogsPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-medium">Total Events</span>
-            <span className="text-base">📋</span>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3.5">
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm">
+          <div className="flex items-center justify-between text-gray-500 mb-1.5">
+            <span className="text-[11px] font-medium">Total Events</span>
+            <span className="text-sm">📋</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-xl font-bold text-gray-900">
             {isLoadingSummary ? "..." : (summary?.totalEvents ?? 0).toLocaleString()}
           </div>
-          <p className="text-xs text-gray-500 mt-1">All recorded actions</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">All recorded actions</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-medium">Today</span>
-            <span className="text-base">⚡</span>
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm">
+          <div className="flex items-center justify-between text-gray-500 mb-1.5">
+            <span className="text-[11px] font-medium">Today</span>
+            <span className="text-sm">⚡</span>
           </div>
-          <div className="text-2xl font-bold text-indigo-600">
+          <div className="text-xl font-bold text-indigo-600">
             {isLoadingSummary ? "..." : (summary?.todayEvents ?? 0).toLocaleString()}
           </div>
-          <p className="text-xs text-gray-500 mt-1">Since midnight UTC</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Since midnight UTC</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-medium">User Actions</span>
-            <span className="text-base">👥</span>
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm">
+          <div className="flex items-center justify-between text-gray-500 mb-1.5">
+            <span className="text-[11px] font-medium">User Actions</span>
+            <span className="text-sm">👥</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-xl font-bold text-gray-900">
             {isLoadingSummary ? "..." : (summary?.userActionsCount ?? 0).toLocaleString()}
           </div>
-          <p className="text-xs text-gray-500 mt-1">Suspensions & status</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Suspensions & status</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-medium">Mentor Actions</span>
-            <span className="text-base">🎓</span>
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm">
+          <div className="flex items-center justify-between text-gray-500 mb-1.5">
+            <span className="text-[11px] font-medium">Mentor Actions</span>
+            <span className="text-sm">🎓</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-xl font-bold text-gray-900">
             {isLoadingSummary ? "..." : (summary?.mentorActionsCount ?? 0).toLocaleString()}
           </div>
-          <p className="text-xs text-gray-500 mt-1">Approvals & status</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Approvals & status</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm col-span-2 md:col-span-1">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-medium">Mentorships</span>
-            <span className="text-base">🤝</span>
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm">
+          <div className="flex items-center justify-between text-gray-500 mb-1.5">
+            <span className="text-[11px] font-medium">Mentorships</span>
+            <span className="text-sm">🤝</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-xl font-bold text-gray-900">
             {isLoadingSummary ? "..." : (summary?.mentorshipActionsCount ?? 0).toLocaleString()}
           </div>
-          <p className="text-xs text-gray-500 mt-1">Terminations & oversight</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Interventions</p>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm">
+          <div className="flex items-center justify-between text-gray-500 mb-1.5">
+            <span className="text-[11px] font-medium">Support</span>
+            <span className="text-sm">💬</span>
+          </div>
+          <div className="text-xl font-bold text-gray-900">
+            {isLoadingSummary ? "..." : (summary?.supportActionsCount ?? 0).toLocaleString()}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-0.5">Inquiries & replies</p>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm col-span-2 sm:col-span-1">
+          <div className="flex items-center justify-between text-gray-500 mb-1.5">
+            <span className="text-[11px] font-medium">Settings</span>
+            <span className="text-sm">⚙️</span>
+          </div>
+          <div className="text-xl font-bold text-gray-900">
+            {isLoadingSummary ? "..." : (summary?.settingsActionsCount ?? 0).toLocaleString()}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-0.5">Configuration updates</p>
         </div>
       </div>
 
@@ -342,6 +405,11 @@ export default function AdminAuditLogsPage() {
                 <option value="MENTOR_REACTIVATED">Mentor Reactivated</option>
                 <option value="MENTOR_CAPACITY_UPDATED">Capacity Updated</option>
               </optgroup>
+              <optgroup label="Support Inbox">
+                <option value="SUPPORT_TICKET_RESOLVED">Support Ticket Resolved</option>
+                <option value="SUPPORT_TICKET_REOPENED">Support Ticket Reopened</option>
+                <option value="SUPPORT_REPLY_SENT">Support Reply Sent</option>
+              </optgroup>
               <optgroup label="Mentorship & System">
                 <option value="MENTORSHIP_TERMINATED">Mentorship Terminated</option>
                 <option value="PLATFORM_SETTING_UPDATED">Setting Updated</option>
@@ -366,6 +434,7 @@ export default function AdminAuditLogsPage() {
               <option value="USER">User</option>
               <option value="MENTOR">Mentor</option>
               <option value="MENTORSHIP_REQUEST">Mentorship Request</option>
+              <option value="SUPPORT_CONVERSATION">Support Conversation</option>
               <option value="PLATFORM_SETTING">Platform Setting</option>
             </select>
           </div>
@@ -411,6 +480,13 @@ export default function AdminAuditLogsPage() {
             </button>
           )}
         </div>
+
+        {isDateRangeInvalid && (
+          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs font-medium text-rose-700 flex items-center gap-2">
+            <span>⚠️</span>
+            <span>Invalid date range: Start date ({startDate}) cannot be after end date ({endDate}).</span>
+          </div>
+        )}
       </div>
 
       {/* Audit Log Table */}
@@ -455,10 +531,37 @@ export default function AdminAuditLogsPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50/75 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Timestamp</th>
+                  <th
+                    className="py-3 px-4 cursor-pointer hover:text-black transition"
+                    onClick={() => handleSort("createdAt")}
+                    aria-sort={sortField === "createdAt" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    <span className="flex items-center gap-1">
+                      <span>Timestamp</span>
+                      <span>{sortField === "createdAt" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</span>
+                    </span>
+                  </th>
                   <th className="py-3 px-4">Administrator</th>
-                  <th className="py-3 px-4">Action</th>
-                  <th className="py-3 px-4">Target</th>
+                  <th
+                    className="py-3 px-4 cursor-pointer hover:text-black transition"
+                    onClick={() => handleSort("action")}
+                    aria-sort={sortField === "action" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    <span className="flex items-center gap-1">
+                      <span>Action</span>
+                      <span>{sortField === "action" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</span>
+                    </span>
+                  </th>
+                  <th
+                    className="py-3 px-4 cursor-pointer hover:text-black transition"
+                    onClick={() => handleSort("targetType")}
+                    aria-sort={sortField === "targetType" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    <span className="flex items-center gap-1">
+                      <span>Target</span>
+                      <span>{sortField === "targetType" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</span>
+                    </span>
+                  </th>
                   <th className="py-3 px-4">Summary</th>
                   <th className="py-3 px-4">Network IP</th>
                   <th className="py-3 px-4 text-right">Details</th>
@@ -597,20 +700,28 @@ export default function AdminAuditLogsPage() {
 
       {/* Inspection Modal */}
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="audit-modal-heading"
+        >
           <div className="bg-white rounded-2xl max-w-2xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               <div className="flex items-center gap-2.5">
-                <span className="text-lg">📋</span>
+                <span className="text-lg" aria-hidden="true">📋</span>
                 <div>
-                  <h3 className="text-base font-bold text-gray-900">Audit Record Details</h3>
+                  <h3 id="audit-modal-heading" className="text-base font-bold text-gray-900">
+                    Audit Record Details
+                  </h3>
                   <p className="text-xs text-gray-500">Record ID #{selectedLog.id}</p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                aria-label="Close audit record details modal"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-black"
               >
                 ✕
               </button>

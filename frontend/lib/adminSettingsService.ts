@@ -7,8 +7,44 @@ export interface MentorshipCapacityConfig {
   defaultMentees: number;
 }
 
+export interface PlatformConfig {
+  aiEnabled: boolean;
+  aiProvider: string;
+  aiModel: string;
+  maxTokens: number;
+  temperature: number;
+  chatMaxMessageLength: number;
+  chatHistoryLimit: number;
+  chatTitleMaxLength: number;
+  chatEnabled: boolean;
+}
+
+export interface SecurityPolicyConfig {
+  authenticationMethod: string;
+  tokenExpiration: string;
+  rbacHierarchy: string;
+  adminSafeguard: string;
+  selfStatusModification: string;
+  auditTrailImmutability: string;
+  credentialSanitization: string;
+}
+
+export interface SystemInfoConfig {
+  applicationName: string;
+  serviceName: string;
+  databaseEngine: string;
+  databaseDialect: string;
+  javaVersion: string;
+  operatingSystem: string;
+  serverStatus: string;
+  mentorshipConstraintInvariant: string;
+}
+
 export interface PlatformSettings {
   mentorshipCapacity: MentorshipCapacityConfig;
+  platformConfig?: PlatformConfig;
+  securityPolicy?: SecurityPolicyConfig;
+  systemInfo?: SystemInfoConfig;
   lastUpdatedAt: string | null;
   lastUpdatedBy: string | null;
 }

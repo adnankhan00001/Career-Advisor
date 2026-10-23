@@ -1,0 +1,12 @@
+package com.careeradvisor.backend.model;
+
+public enum OnboardingState {
+    NOT_STARTED,
+    CAREER_SELECTED,
+    TECHNOLOGIES_SELECTED,
+    STUDY_PREFERENCES_CONFIGURED,
+    ASSESSMENT_IN_PROGRESS,
+    ASSESSMENT_COMPLETED,
+    ASSESSMENT_REVIEWED,
+    ROADMAP_GENERATED
+}

@@ -243,6 +243,8 @@ public class AdminAuditLogService {
         long mentorActions = auditLogRepository.countByTargetType(AdminAuditTargetType.MENTOR);
         long userActions = auditLogRepository.countByTargetType(AdminAuditTargetType.USER);
         long mentorshipActions = auditLogRepository.countByTargetType(AdminAuditTargetType.MENTORSHIP_REQUEST);
+        long supportActions = auditLogRepository.countByTargetType(AdminAuditTargetType.SUPPORT_CONVERSATION);
+        long settingsActions = auditLogRepository.countByTargetType(AdminAuditTargetType.PLATFORM_SETTING);
 
         return AdminAuditSummaryDto.builder()
                 .totalEvents(totalEvents)
@@ -250,6 +252,8 @@ public class AdminAuditLogService {
                 .mentorActionsCount(mentorActions)
                 .userActionsCount(userActions)
                 .mentorshipActionsCount(mentorshipActions)
+                .supportActionsCount(supportActions)
+                .settingsActionsCount(settingsActions)
                 .build();
     }
 

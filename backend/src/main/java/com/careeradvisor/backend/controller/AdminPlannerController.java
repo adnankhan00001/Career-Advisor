@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/planner")
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminPlannerController {
 
     private final PlannerService plannerService;

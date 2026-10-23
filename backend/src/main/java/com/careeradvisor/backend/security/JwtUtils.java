@@ -25,6 +25,13 @@ public class JwtUtils {
     @Value("${app.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
 
+    @jakarta.annotation.PostConstruct
+    public void validateJwtConfiguration() {
+        if ("404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970".equals(jwtSecret)) {
+            logger.warn("JWT SECURITY NOTICE: Active environment is using the default development JWT signing key. In production, configure 'JWT_SECRET' in environment variables with a unique 256-bit secret.");
+        }
+    }
+
     private SecretKey getSigningKey() {
         byte[] keyBytes;
         try {

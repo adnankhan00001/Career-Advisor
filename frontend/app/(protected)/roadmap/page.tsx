@@ -9,6 +9,10 @@ import { getCareerSuggestions } from "@/lib/careerLogic";
 import { roadmapService } from "@/lib/roadmapService";
 import { progressService } from "@/lib/progressService";
 import { skillService } from "@/lib/skillService";
+import { onboardingService, OnboardingStateDto } from "@/lib/onboardingService";
+import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
+import { personalizedRoadmapService, PersonalizedRoadmap } from "@/lib/personalizedRoadmapService";
+import PersonalizedRoadmapView from "@/components/roadmap/PersonalizedRoadmapView";
 
 function RoadmapContent() {
   const searchParams = useSearchParams();
@@ -21,50 +25,66 @@ function RoadmapContent() {
   const [filterQuery, setFilterQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [onboardingState, setOnboardingState] = useState<OnboardingStateDto | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [personalizedRoadmap, setPersonalizedRoadmap] = useState<PersonalizedRoadmap | null>(null);
+
+  const loadRoadmapData = async () => {
+    setLoading(true);
+    try {
+      const [loadedRoadmaps, loadedCompleted, loadedSkills, progressSummary, obState, pRoadmap] =
+        await Promise.all([
+          roadmapService.getAllRoadmaps(),
+          progressService.getCompletedSteps(),
+          skillService.getUserSkills(),
+          progressService.getProgressSummary(),
+          onboardingService.getState().catch(() => null),
+          personalizedRoadmapService.getPersonalizedRoadmap().catch(() => null),
+        ]);
+
+      if (obState) {
+        setOnboardingState(obState);
+        if (!obState.hasPersonalizedRoadmap && obState.state !== "ROADMAP_GENERATED") {
+          setShowOnboarding(true);
+        }
+      }
+
+      if (pRoadmap) {
+        setPersonalizedRoadmap(pRoadmap);
+      }
+
+      if (loadedRoadmaps && Object.keys(loadedRoadmaps).length > 0) {
+        setAllRoadmaps(loadedRoadmaps);
+      }
+
+      setCompleted(loadedCompleted);
+      setSkills(loadedSkills);
+
+      const goal = obState?.selectedCareer?.title || progressSummary?.careerGoal || "Java Backend Developer";
+      setCareerGoal(goal);
+
+      // Read URL query parameter
+      const careerParam = searchParams.get("career");
+      if (careerParam && (loadedRoadmaps[careerParam] || roadmapData[careerParam])) {
+        setSelectedCareer(careerParam);
+      } else if (goal && (loadedRoadmaps[goal] || roadmapData[goal])) {
+        setSelectedCareer(goal);
+      } else {
+        const suggestions = getCareerSuggestions(loadedSkills);
+        if (suggestions.length > 0 && (loadedRoadmaps[suggestions[0].title] || roadmapData[suggestions[0].title])) {
+          setSelectedCareer(suggestions[0].title);
+        } else {
+          setSelectedCareer(Object.keys(loadedRoadmaps)[0] || "Java Backend Developer");
+        }
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadRoadmapData() {
-      setLoading(true);
-      try {
-        const [loadedRoadmaps, loadedCompleted, loadedSkills, progressSummary] =
-          await Promise.all([
-            roadmapService.getAllRoadmaps(),
-            progressService.getCompletedSteps(),
-            skillService.getUserSkills(),
-            progressService.getProgressSummary(),
-          ]);
-
-        if (loadedRoadmaps && Object.keys(loadedRoadmaps).length > 0) {
-          setAllRoadmaps(loadedRoadmaps);
-        }
-
-        setCompleted(loadedCompleted);
-        setSkills(loadedSkills);
-
-        const goal = progressSummary?.careerGoal || "Java Backend Developer";
-        setCareerGoal(goal);
-
-        // Read URL query parameter
-        const careerParam = searchParams.get("career");
-        if (careerParam && (loadedRoadmaps[careerParam] || roadmapData[careerParam])) {
-          setSelectedCareer(careerParam);
-        } else if (goal && (loadedRoadmaps[goal] || roadmapData[goal])) {
-          setSelectedCareer(goal);
-        } else {
-          const suggestions = getCareerSuggestions(loadedSkills);
-          if (suggestions.length > 0 && (loadedRoadmaps[suggestions[0].title] || roadmapData[suggestions[0].title])) {
-            setSelectedCareer(suggestions[0].title);
-          } else {
-            setSelectedCareer(Object.keys(loadedRoadmaps)[0] || "Java Backend Developer");
-          }
-        }
-      } catch {
-        // Fallback
-      } finally {
-        setLoading(false);
-      }
-    }
-
     loadRoadmapData();
   }, [searchParams]);
 
@@ -128,6 +148,60 @@ function RoadmapContent() {
 
   const currentCareerMeta = careersData.find((c) => c.title === selectedCareer);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (showOnboarding && onboardingState) {
+    return (
+      <div className="max-w-5xl mx-auto py-4">
+        <OnboardingWizard
+          initialState={onboardingState}
+          onComplete={async () => {
+            setShowOnboarding(false);
+            setLoading(true);
+            try {
+              const [freshState, freshRoadmap] = await Promise.all([
+                onboardingService.getState().catch(() => null),
+                personalizedRoadmapService.getPersonalizedRoadmap().catch(() => null),
+              ]);
+              if (freshState) {
+                setOnboardingState(freshState);
+                if (freshState.selectedCareer?.title) {
+                  setSelectedCareer(freshState.selectedCareer.title);
+                  setCareerGoal(freshState.selectedCareer.title);
+                }
+              }
+              if (freshRoadmap) {
+                setPersonalizedRoadmap(freshRoadmap);
+              }
+            } finally {
+              setLoading(false);
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
+  // If candidate has a personalized roadmap and isn't filtering another career track via query param
+  const careerParam = searchParams.get("career");
+  if (personalizedRoadmap && (!careerParam || careerParam === personalizedRoadmap.careerTitle)) {
+    return (
+      <div className="max-w-5xl mx-auto py-4">
+        <PersonalizedRoadmapView
+          initialRoadmap={personalizedRoadmap}
+          onReconfigure={() => setShowOnboarding(true)}
+          onRefresh={loadRoadmapData}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16">
       {/* Toast Notice */}
@@ -161,6 +235,12 @@ function RoadmapContent() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <button
+            onClick={() => setShowOnboarding(true)}
+            className="py-2.5 px-4 bg-blue-50 text-blue-700 text-xs sm:text-sm font-semibold rounded-xl hover:bg-blue-100 transition border border-blue-200 cursor-pointer"
+          >
+            Reconfigure Track ⚙
+          </button>
           {selectedCareer !== careerGoal && (
             <button
               onClick={handleSetMainGoal}

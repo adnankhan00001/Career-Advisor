@@ -125,6 +125,8 @@ class AdminAuditLogControllerTests {
                 .mentorActionsCount(50L)
                 .userActionsCount(80L)
                 .mentorshipActionsCount(15L)
+                .supportActionsCount(10L)
+                .settingsActionsCount(5L)
                 .build();
 
         when(auditLogService.getAuditSummary()).thenReturn(summary);
@@ -133,7 +135,9 @@ class AdminAuditLogControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalEvents").value(150))
                 .andExpect(jsonPath("$.todayEvents").value(12))
-                .andExpect(jsonPath("$.mentorActionsCount").value(50));
+                .andExpect(jsonPath("$.mentorActionsCount").value(50))
+                .andExpect(jsonPath("$.supportActionsCount").value(10))
+                .andExpect(jsonPath("$.settingsActionsCount").value(5));
     }
 
     @Test

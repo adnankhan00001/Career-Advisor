@@ -22,4 +22,6 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     List<Conversation> findByTypeOrderByUpdatedAtDesc(com.careeradvisor.backend.model.ConversationType type);
 
     Optional<Conversation> findByIdAndType(Long id, com.careeradvisor.backend.model.ConversationType type);
+
+    long countByType(com.careeradvisor.backend.model.ConversationType type);
 }

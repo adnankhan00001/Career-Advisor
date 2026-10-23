@@ -4,6 +4,17 @@ export const API_BASE_URL = (
   "http://localhost:8080"
 ).replace(/\/+$/, "");
 
+if (
+  typeof window !== "undefined" &&
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1" &&
+  (API_BASE_URL.includes("localhost") || API_BASE_URL.includes("127.0.0.1"))
+) {
+  console.error(
+    `[CareerAdvisor Config] CRITICAL: App is loaded on remote host '${window.location.hostname}', but API_BASE_URL is defaulting to localhost ('${API_BASE_URL}'). Set NEXT_PUBLIC_API_URL in your hosting provider environment settings.`
+  );
+}
+
 export const WS_BASE_URL =
   process.env.NEXT_PUBLIC_WS_URL ||
   (API_BASE_URL.startsWith("https://")
@@ -119,6 +130,7 @@ export const API_ENDPOINTS = {
     READ: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}/read`,
     TYPING: (id: number | string) => `${API_BASE_URL}/api/conversations/${id}/typing`,
     ADMIN_INBOX: `${API_BASE_URL}/api/conversations/admin/inbox`,
+    ADMIN_STATUS: (id: number | string) => `${API_BASE_URL}/api/conversations/admin/${id}/status`,
   },
     PLANNER: {
     CURRENT: `${API_BASE_URL}/api/planner/current`,
@@ -175,6 +187,60 @@ export const API_ENDPOINTS = {
       REACTIVATE: (id: number | string) => `${API_BASE_URL}/api/admin/mentors/${id}/reactivate`,
       CONFIG: `${API_BASE_URL}/api/admin/mentors/config`,
     },
+  },
+  CATALOG: {
+    CAREERS: `${API_BASE_URL}/api/catalog/careers`,
+    CAREER: (slug: string) => `${API_BASE_URL}/api/catalog/careers/${encodeURIComponent(slug)}`,
+    TECHNOLOGIES: `${API_BASE_URL}/api/catalog/technologies`,
+    TECHNOLOGY: (slug: string) => `${API_BASE_URL}/api/catalog/technologies/${encodeURIComponent(slug)}`,
+    COMPETENCIES: (slug: string) => `${API_BASE_URL}/api/catalog/technologies/${encodeURIComponent(slug)}/competencies`,
+  },
+  ASSESSMENTS: {
+    START: `${API_BASE_URL}/api/assessments/start`,
+    ACTIVE: `${API_BASE_URL}/api/assessments/active`,
+    SESSION: (id: number | string) => `${API_BASE_URL}/api/assessments/${id}`,
+    ANSWER: (id: number | string) => `${API_BASE_URL}/api/assessments/${id}/answer`,
+    SKIP: (id: number | string) => `${API_BASE_URL}/api/assessments/${id}/skip`,
+    SUBMIT: (id: number | string) => `${API_BASE_URL}/api/assessments/${id}/submit`,
+    REPORT: (id: number | string) => `${API_BASE_URL}/api/assessments/${id}/report`,
+    HISTORY: `${API_BASE_URL}/api/assessments/history`,
+    REASSESSMENTS: `${API_BASE_URL}/api/assessments/reassessments`,
+    REASSESSMENT: (id: number | string) => `${API_BASE_URL}/api/assessments/reassessments/${id}`,
+    REASSESSMENT_SUBMIT: (id: number | string) => `${API_BASE_URL}/api/assessments/reassessments/${id}/submit`,
+    REASSESSMENT_COMPARISON: (id: number | string, baselineId?: number | string) =>
+      `${API_BASE_URL}/api/assessments/reassessments/${id}/comparison${baselineId ? `?baselineId=${baselineId}` : ""}`,
+  },
+  ONBOARDING: {
+    STATE: `${API_BASE_URL}/api/onboarding/state`,
+    SELECT_CAREER: `${API_BASE_URL}/api/onboarding/select-career`,
+    SELECT_TECHNOLOGIES: `${API_BASE_URL}/api/onboarding/select-technologies`,
+    STUDY_PREFERENCES: `${API_BASE_URL}/api/onboarding/study-preferences`,
+    START_ASSESSMENT: `${API_BASE_URL}/api/onboarding/start-assessment`,
+    REVIEW_REPORT: `${API_BASE_URL}/api/onboarding/review-report`,
+    COMPLETE: `${API_BASE_URL}/api/onboarding/complete`,
+    RESET: `${API_BASE_URL}/api/onboarding/reset`,
+  },
+  PERSONALIZED_ROADMAP: {
+    GET: `${API_BASE_URL}/api/roadmaps/personalized`,
+    GENERATE: `${API_BASE_URL}/api/roadmaps/personalized/generate`,
+    TOGGLE_STEP: (stepId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/steps/${stepId}/toggle`,
+    STEP_STATE: (stepId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/steps/${stepId}/state`,
+    STEP_PRIORITY: (stepId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/steps/${stepId}/priority`,
+    ADD_CUSTOM_MILESTONE: `${API_BASE_URL}/api/roadmaps/personalized/milestones/custom`,
+    UPDATE_MILESTONE: (milestoneId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/milestones/${milestoneId}`,
+    DELETE_CUSTOM_MILESTONE: (milestoneId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/milestones/${milestoneId}`,
+    SKIP_MILESTONE: (milestoneId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/milestones/${milestoneId}/skip`,
+    REORDER_MILESTONES: `${API_BASE_URL}/api/roadmaps/personalized/milestones/reorder`,
+    SUBMIT_EVIDENCE: (milestoneId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/milestones/${milestoneId}/evidence`,
+    MILESTONE_EVIDENCE: (milestoneId: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/milestones/${milestoneId}/evidence`,
+    ALL_EVIDENCE: `${API_BASE_URL}/api/roadmaps/personalized/evidence`,
+    UPDATE_SCHEDULE: `${API_BASE_URL}/api/roadmaps/personalized/schedule`,
+    REVISIONS: `${API_BASE_URL}/api/roadmaps/personalized/revisions`,
+    ADAPTIVE_UPDATE_PREVIEW: `${API_BASE_URL}/api/roadmaps/personalized/adaptive-updates/preview`,
+    ADAPTIVE_UPDATE_PROPOSAL: (id: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/adaptive-updates/${id}`,
+    ADAPTIVE_UPDATE_APPLY: (id: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/adaptive-updates/${id}/apply`,
+    ADAPTIVE_UPDATE_REJECT: (id: number | string) => `${API_BASE_URL}/api/roadmaps/personalized/adaptive-updates/${id}/reject`,
+    ADAPTIVE_UPDATE_HISTORY: `${API_BASE_URL}/api/roadmaps/personalized/adaptive-updates/history`,
   },
 };
 

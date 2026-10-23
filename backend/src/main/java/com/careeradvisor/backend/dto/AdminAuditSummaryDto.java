@@ -15,4 +15,6 @@ public class AdminAuditSummaryDto {
     private long mentorActionsCount;
     private long userActionsCount;
     private long mentorshipActionsCount;
+    private long supportActionsCount;
+    private long settingsActionsCount;
 }

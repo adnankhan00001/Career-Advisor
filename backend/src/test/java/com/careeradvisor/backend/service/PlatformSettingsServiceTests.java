@@ -70,6 +70,12 @@ class PlatformSettingsServiceTests {
         assertEquals(4, settings.getMentorshipCapacity().getDefaultMentees());
         assertEquals("admin@careeradvisor.dev", settings.getLastUpdatedBy());
         assertEquals(now, settings.getLastUpdatedAt());
+        assertNotNull(settings.getPlatformConfig());
+        assertEquals("gemini-1.5-flash", settings.getPlatformConfig().get("aiModel"));
+        assertNotNull(settings.getSecurityPolicy());
+        assertEquals("Stateless JWT (HMAC-SHA256)", settings.getSecurityPolicy().get("authenticationMethod"));
+        assertNotNull(settings.getSystemInfo());
+        assertEquals("Career Advisor", settings.getSystemInfo().get("applicationName"));
     }
 
     @Test

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @Builder
@@ -14,6 +15,9 @@ import java.time.LocalDateTime;
 public class PlatformSettingsDto {
 
     private MentorshipCapacityConfigDto mentorshipCapacity;
+    private Map<String, Object> platformConfig;
+    private Map<String, Object> securityPolicy;
+    private Map<String, Object> systemInfo;
     private LocalDateTime lastUpdatedAt;
     private String lastUpdatedBy;
 }

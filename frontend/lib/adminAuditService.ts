@@ -13,13 +13,17 @@ export type AdminAuditAction =
   | "MENTOR_REACTIVATED"
   | "MENTOR_CAPACITY_UPDATED"
   | "MENTORSHIP_TERMINATED"
-  | "PLATFORM_SETTING_UPDATED";
+  | "PLATFORM_SETTING_UPDATED"
+  | "SUPPORT_TICKET_RESOLVED"
+  | "SUPPORT_TICKET_REOPENED"
+  | "SUPPORT_REPLY_SENT";
 
 export type AdminAuditTargetType =
   | "USER"
   | "MENTOR"
   | "MENTORSHIP_REQUEST"
-  | "PLATFORM_SETTING";
+  | "PLATFORM_SETTING"
+  | "SUPPORT_CONVERSATION";
 
 export interface AdminAuditLog {
   id: number;
@@ -42,6 +46,8 @@ export interface AdminAuditSummary {
   mentorActionsCount: number;
   userActionsCount: number;
   mentorshipActionsCount: number;
+  supportActionsCount: number;
+  settingsActionsCount: number;
 }
 
 export interface AuditLogFilterParams {

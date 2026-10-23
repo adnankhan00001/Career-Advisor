@@ -176,6 +176,8 @@ class AdminAuditLogServiceTests {
         when(auditLogRepository.countByTargetType(AdminAuditTargetType.MENTOR)).thenReturn(40L);
         when(auditLogRepository.countByTargetType(AdminAuditTargetType.USER)).thenReturn(75L);
         when(auditLogRepository.countByTargetType(AdminAuditTargetType.MENTORSHIP_REQUEST)).thenReturn(35L);
+        when(auditLogRepository.countByTargetType(AdminAuditTargetType.SUPPORT_CONVERSATION)).thenReturn(10L);
+        when(auditLogRepository.countByTargetType(AdminAuditTargetType.PLATFORM_SETTING)).thenReturn(5L);
 
         AdminAuditSummaryDto summary = auditLogService.getAuditSummary();
 
@@ -185,5 +187,7 @@ class AdminAuditLogServiceTests {
         assertEquals(40L, summary.getMentorActionsCount());
         assertEquals(75L, summary.getUserActionsCount());
         assertEquals(35L, summary.getMentorshipActionsCount());
+        assertEquals(10L, summary.getSupportActionsCount());
+        assertEquals(5L, summary.getSettingsActionsCount());
     }
 }

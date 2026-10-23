@@ -38,12 +38,18 @@ function LoginForm() {
     setMessage("");
 
     try {
-      await login({
+      const authRes = await login({
         email: email.trim(),
         password,
       });
 
-      router.push("/dashboard");
+      if (authRes?.role === "ADMIN") {
+        router.push("/admin");
+      } else if (authRes?.role === "MENTOR") {
+        router.push("/mentorship/manage");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err: any) {
       setIsError(true);
 

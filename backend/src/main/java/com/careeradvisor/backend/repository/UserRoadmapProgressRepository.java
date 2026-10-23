@@ -15,5 +15,6 @@ public interface UserRoadmapProgressRepository extends JpaRepository<UserRoadmap
     List<UserRoadmapProgress> findByUserAndCareerTitle(User user, String careerTitle);
     Optional<UserRoadmapProgress> findByUserAndCareerTitleAndStepTitle(User user, String careerTitle, String stepTitle);
     boolean existsByUserAndStepTitle(User user, String stepTitle);
+    boolean existsByUserAndCareerTitleAndStepTitle(User user, String careerTitle, String stepTitle);
     void deleteByUser(User user);
 }
