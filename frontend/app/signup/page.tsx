@@ -72,7 +72,7 @@ export default function SignupPage() {
 
       // Onboarding sequence: Redirect to initial quiz
       setTimeout(() => {
-        router.push("/quiz");
+        router.push("/dashboard");
       }, 800);
     } catch (err: any) {
       setIsError(true);
